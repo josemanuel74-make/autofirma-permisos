@@ -25,7 +25,8 @@ WEBHOOK_URL = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    from flask import redirect
+    return redirect('/permiso')
 
 @app.route('/save', methods=['POST'])
 def save_signature():
