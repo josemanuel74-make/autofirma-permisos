@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.db
+.DS_Store
+signed_docs/
+.git/
+.gitignore
+task.md
+implementation_plan.md
+walkthrough.md

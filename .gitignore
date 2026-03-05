@@ -1,0 +1,20 @@
+# Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Uploads and temporary files
+uploads/
+signed_docs/
+registros_permisos.csv
+*.pdf
+!Solicitud Permiso.pdf
+!Solicitud Permiso Definitivo.pdf
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud Permiso</title>
+    <!-- Flatpickr for better date selection -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+
+    <script type="text/javascript" src="{{ url_for('static', filename='js/autoscript.js') }}"></script>
+    <script>
+        let fpInstance = null;
+
+        function initDatePicker() {
+            fpInstance = flatpickr("#dias_solicitados_picker", {
+                mode: 'multiple',
+                dateFormat: "d/m/Y",
+                locale: "es",
+                onChange: function (selectedDates, dateStr, instance) {
+                    document.getElementById('total_dias').value = selectedDates.length;
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof AutoScript !== 'undefined') {
+                AutoScript.cargarAppAfirma();
+                AutoScript.setServlets(window.location.origin + "/storage", window.location.origin + "/retriever");
+            }
+
+            // Initialize date picker in multiple mode
+            initDatePicker();
+
+            // Auto-set current date
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('fecha').value = `${year}-${month}-${day}`;
+        });
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header-branding">
+            <img src="{{ url_for('static', filename='img/logo.gif') }}" alt="Logo IES Leopoldo Queipo" class="logo">
+            <div class="header-text">
+                <span class="institute-name">IES LEOPOLDO QUEIPO</span>
+                <span class="document-title">Solicitud Permiso</span>
+            </div>
+        </div>
+        <div id="status" class="status-message info" style="display:none"></div>
+
+        <form id="permisoForm" class="form-grid">
+
+            <div class="section-title">Datos Personales</div>
+
+            <div class="form-group full-width">
+                <label for="nombre">Nombre y Apellidos *</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Nombre completo">
+            </div>
+
+            <div class="form-group">
+                <label for="dni">DNI *</label>
+                <input type="text" id="dni" name="dni" required placeholder="Ej: 12345678Z">
+            </div>
+
+            <div class="form-group">
+                <label for="nrp">NRP (Opcional)</label>
+                <input type="text" id="nrp" name="nrp" placeholder="Número Registro Personal">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="asignatura">Asignatura / Puesto *</label>
+                <input type="text" id="asignatura" name="asignatura" required placeholder="Ej: Lengua y Literatura">
+            </div>
+
+            <div class="section-title">Detalles del Permiso</div>
+
+            <div class="form-group full-width">
+                <label for="motivo">Motivo de la solicitud *</label>
+                <textarea id="motivo" name="motivo" required
+                    placeholder="Escriba aquí el motivo detallado..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="articulo">Artículo (Normativa)</label>
+                <input type="text" id="articulo" name="articulo" placeholder="Ej: Art. 73.1">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="dias_solicitados_picker">Seleccione los días *</label>
+                <input type="text" id="dias_solicitados_picker" name="dias_solicitados" required
+                    placeholder="Haga clic para seleccionar fechas">
+                <input type="hidden" id="total_dias" name="total_dias" value="0">
+            </div>
+
+            <div class="form-group full-width">
+                <label for="descripcion_adjunto">Descripción de la documentación que adjunta *</label>
+                <input type="text" id="descripcion_adjunto" name="descripcion_adjunto" required
+                    placeholder="Ej: Certificado médico, justificante cita...">
+            </div>
+
+            <div class="form-group full-width file-input-wrapper">
+                <label for="justificacion_file">Archivo de documentación justificativa *</label>
+                <input type="file" id="justificacion_file" name="justificacion_file" required accept=".pdf,image/*">
+                <span class="file-hint">Formatos soportados: PDF, Imágenes.</span>
+            </div>
+
+            <div class="section-title">Firma y Fecha</div>
+
+            <div class="form-group">
+                <label for="fecha">Fecha de Solicitud (Hoy)</label>
+                <input type="date" id="fecha" name="fecha" required readonly class="readonly-field">
+            </div>
+
+            <div class="full-width">
+                <button type="submit" id="signBtn">Generar y Firmar Documento</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function showMessage(msg, type) {
+            const el = document.getElementById('status');
+            el.innerHTML = msg; // Changed to innerHTML to allow links
+            el.className = 'status-message ' + type;
+            el.style.display = 'block';
+            console.log("Status update:", msg);
+        }
+
+        function showErrorCallback(type, message) {
+            console.error("Signature error:", type, message);
+            showMessage("Error en firma: " + type + " - " + message, "error");
+            document.getElementById('signBtn').disabled = false;
+            document.getElementById('signBtn').textContent = "Generar y Firmar Documento";
+        }
+
+        function showSignResultCallback(signatureB64, certificateB64) {
+            console.log("Signature successful. Length:", (signatureB64 ? signatureB64.length : "null"));
+
+            if (!signatureB64) {
+                alert("AutoFirma devolvió una firma vacía. Por favor, reintente.");
+                showMessage("Firma fallida: el componente devolvió datos vacíos.", "error");
+                return;
+            }
+
+            showMessage("Firma realizada con éxito. Guardando en servidor...", "success");
+
+            const nombre = document.getElementById('nombre').value;
+            const dni = document.getElementById('dni').value;
+            const nrp = document.getElementById('nrp').value;
+            const asignatura = document.getElementById('asignatura').value;
+            const motivo = document.getElementById('motivo').value;
+            const articulo = document.getElementById('articulo').value;
+            const dias_solicitados = document.getElementById('dias_solicitados_picker').value;
+            const total_dias = document.getElementById('total_dias').value;
+            const descripcion_adjunto = document.getElementById('descripcion_adjunto').value;
+            const fecha = document.getElementById('fecha').value;
+
+            fetch('/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    signature: signatureB64,
+                    nombre: nombre,
+                    dni: dni,
+                    nrp: nrp,
+                    asignatura: asignatura,
+                    motivo: motivo,
+                    articulo: articulo,
+                    dias_solicitados: dias_solicitados,
+                    total_dias: total_dias,
+                    descripcion_adjunto: descripcion_adjunto,
+                    fecha: fecha
+                })
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error("Server returned " + res.status);
+                    return res.json();
+                })
+                .then(data => {
+                    console.log("Save response:", data);
+                    if (data.status === 'success') {
+                        const statusEl = document.getElementById('status');
+                        statusEl.innerHTML = '';
+
+                        const container = document.createElement('div');
+                        container.className = 'final-container';
+
+                        const msg = document.createElement('h2');
+                        msg.textContent = '¡DOCUMENTO FIRMADO Y GUARDADO!';
+                        container.appendChild(msg);
+
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.textContent = 'DESCARGAR PDF FIRMADO';
+                        // Classes handled by CSS for button inside final-container
+
+                        downloadBtn.onclick = () => {
+                            try {
+                                const link = document.createElement('a');
+                                link.href = "data:application/pdf;base64," + signatureB64;
+                                link.download = "Solicitud_Permiso_Firmada.pdf";
+                                link.click();
+                            } catch (e) {
+                                alert("Error al iniciar descarga: " + e.message);
+                            }
+                        };
+
+                        container.appendChild(downloadBtn);
+                        statusEl.appendChild(container);
+                        statusEl.style.display = 'block';
+
+                        statusEl.scrollIntoView({ behavior: 'smooth' });
+                    } else {
+                        alert("Error al guardar archivo: " + data.message);
+                        showMessage("Error al guardar: " + data.message, "error");
+                    }
+                })
+                .catch(err => {
+                    console.error("Fetch save error:", err);
+                    alert("Error crítico de comunicación al guardar: " + err.message);
+                    showMessage("Error de red al guardar: " + err, "error");
+                })
+                .finally(() => {
+                    document.getElementById('signBtn').disabled = false;
+                    document.getElementById('signBtn').textContent = "Generar y Firmar Documento";
+                });
+        }
+
+        document.getElementById('permisoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('signBtn');
+            const statusEl = document.getElementById('status');
+
+            btn.disabled = true;
+            btn.textContent = "Procesando...";
+            showMessage("Generando PDF... por favor espere", "info");
+
+            const formData = new FormData(e.target);
+            // We need to parse the date manually since it might be in different formats
+            const dateStr = formData.get('fecha');
+            const [year, month, day] = dateStr.split('-');
+            const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+            // Add extra fields that are derived
+            formData.append('dia_firma', parseInt(day).toString());
+            formData.append('mes_firma', months[parseInt(month) - 1]);
+            formData.append('anio_firma', year);
+
+            try {
+                console.log("Requesting /generate_permiso...");
+                const response = await fetch('/generate_permiso', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                console.log("Generate result:", result);
+
+                if (result.status === 'success') {
+                    // Show draft download link immediately as fallback
+                    const draftLink = `<br><a href="data:application/pdf;base64,${result.pdf_base64}" download="Borrador_No_Firmado.pdf" style="color: blue; text-decoration: underline;">Descargar borrador (si AutoFirma no abre)</a>`;
+                    showMessage("PDF Generado con éxito. Abriendo AutoFirma..." + draftLink, "info");
+
+                    if (typeof AutoScript !== 'undefined') {
+                        console.log("Invocando AutoScript.sign...");
+                        try {
+                            AutoScript.sign(
+                                result.pdf_base64,
+                                "SHA256withRSA",
+                                "PAdES",
+                                result.extra_params || null,
+                                showSignResultCallback,
+                                showErrorCallback
+                            );
+                        } catch (err) {
+                            console.error("AutoScript.sign exception:", err);
+                            showMessage("Error al invocar AutoFirma: " + err.message, "error");
+                            btn.disabled = false;
+                            btn.textContent = "Generar y Firmar Documento";
+                        }
+                    } else {
+                        showMessage("Error: AutoFirma no está cargado. " + draftLink, "error");
+                        btn.disabled = false;
+                        btn.textContent = "Generar y Firmar Documento";
+                    }
+
+                } else {
+                    showMessage("Error generando PDF: " + result.message, "error");
+                    btn.disabled = false;
+                    btn.textContent = "Generar y Firmar Documento";
+                }
+
+            } catch (error) {
+                console.error("Fetch generate error:", error);
+                showMessage("Error de comunicación: " + error.message, "error");
+                btn.disabled = false;
+                btn.textContent = "Generar y Firmar Documento";
+            }
+        });
+    </script>
+</body>
+
+</html>
