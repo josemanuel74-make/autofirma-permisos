@@ -162,25 +162,25 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: etiqueta en Y~644, ponemos texto debajo en Y~630
-        draw_text(71, 628, data.get('nombre', ''), size=11)
+        # NOMBRE: etiqueta en Y~644.7, ponemos texto en Y=632
+        draw_text(71, 632, data.get('nombre', ''), size=11)
 
-        # NRP: etiqueta en Y~574, ponemos texto debajo en Y~558
-        draw_text(71, 558, data.get('nrp', ''))
+        # NRP: etiqueta en Y~574.2, ponemos texto en Y=562
+        draw_text(132, 562, data.get('nrp', ''))
 
-        # DNI: misma línea que NRP, offset X=283
-        draw_text(283, 558, data.get('dni', ''))
+        # DNI: etiqueta en Y~574.2, offset X=283
+        draw_text(283, 562, data.get('dni', ''))
 
-        # ASIGNATURA: misma línea, offset X~430
-        draw_text(430, 558, data.get('asignatura', ''))
+        # ASIGNATURA: offset X~430
+        draw_text(430, 562, data.get('asignatura', ''))
 
-        # DIAS SOLICITADOS: etiqueta en Y~486, texto debajo en Y~468
-        draw_multiline(71, 468, data.get('dias_solicitados', ''), width=450)
+        # DIAS SOLICITADOS: etiqueta en Y~486.1, texto en Y=474
+        draw_multiline(71, 474, data.get('dias_solicitados', ''), width=450)
 
-        # MOTIVO: etiqueta en Y~381, texto debajo en Y~360
-        draw_multiline(71, 360, data.get('motivo', ''), width=450)
+        # MOTIVO: etiqueta en Y~380.9, texto en Y=368
+        draw_multiline(71, 368, data.get('motivo', ''), width=450)
 
-        # ARTICULO: justo después de "AL AMPARO DEL ARTÍCULO:" en Y~252
+        # ARTICULO: etiqueta en Y~252.6, texto en Y=252
         draw_text(210, 252, data.get('articulo', ''))
 
         # FECHA: "Melilla, a __ de __ de __" en Y~206
@@ -191,21 +191,21 @@ def generate_permiso():
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        # D/Dª (nombre): Y~644
-        draw_text(71, 632, data.get('nombre', ''), size=9)
+        # D/Dª (nombre): etiqueta Y~644.2, texto Y=644? No, subir un poco.
+        draw_text(85, 644, data.get('nombre', ''), size=9)
 
-        # NRP: Y~644 offset X=390
-        draw_text(390, 632, data.get('nrp', ''), size=9)
+        # NRP: offset X=395
+        draw_text(395, 644, data.get('nrp', ''), size=9)
 
-        # Días: Y~619
-        draw_text(71, 607, data.get('dias_solicitados', ''), size=9)
+        # Días: etiqueta Y~631.9, texto Y=620
+        draw_text(85, 620, data.get('dias_solicitados', ''), size=9)
 
-        # Motivo: Y~607 (line "por el siguiente motivo")
-        motivo_short = (data.get('motivo', '')[:60] + '...') if len(data.get('motivo', '')) > 60 else data.get('motivo', '')
-        draw_text(71, 595, motivo_short, size=9)
+        # Motivo: etiqueta Y~619.9, texto Y=608
+        motivo_short = (data.get('motivo', '')[:80] + '...') if len(data.get('motivo', '')) > 80 else data.get('motivo', '')
+        draw_text(85, 608, motivo_short, size=9)
 
-        # Descripcion justificante: Y~583
-        draw_text(143, 583, data.get('descripcion_adjunto', ''), size=9)
+        # Descripcion justificante: etiqueta Y~595.7, texto Y=583
+        draw_text(150, 583, data.get('descripcion_adjunto', ''), size=9)
 
         c.save()
         packet.seek(0)
