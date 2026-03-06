@@ -127,9 +127,9 @@ def generate_permiso():
         
         # Load and clone the PDF to preserve structure and forms
         # We rename the template if it's renamed, or just keep using the same file but updating references
-        template_name = "Solicitud Permiso.pdf"
+        template_name = "Solicitud Permiso Definitivo.pdf"
         if not os.path.exists(template_name):
-            template_name = "Solicitud Permiso Definitivo.pdf" # Fallback if not renamed yet
+            template_name = "Solicitud Permiso.pdf"  # Fallback a la plantilla anterior
             
         writer = PdfWriter(clone_from=template_name)
 
@@ -138,16 +138,10 @@ def generate_permiso():
         # --- STAMPING APPROACH (Fix for Adobe Acrobat Tildes) ---
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import A4
-        # from pypdf import PdfReader, PdfWriter, PageObject # Removed to avoid UnboundLocalError
 
         # Create the overlay PDF with text
         packet = io.BytesIO()
-        # Create canvas - we assume A4 usage as per template
         c = canvas.Canvas(packet, pagesize=A4)
-        
-        # --- PAGE 1 MAPPING ---
-        # Coordinates derived from get_coords_detailed.py
-        # Rect format [xll, yll, xur, yur]
         
         # Helper to draw
         def draw_text(x, y, text, size=10):
@@ -160,58 +154,59 @@ def generate_permiso():
             if not text: return
             c.setFont("Helvetica", size)
             import textwrap
-            # Approx char width for Helvetica 10 is ~6px ?
-            # Let's be safe with 50 chars for 300px
-            chars_per_line = int(width / 6) 
+            chars_per_line = int(width / 6)
             lines = textwrap.wrap(str(text), chars_per_line)
             current_y = y
             for line in lines:
                 c.drawString(x, current_y, line)
-                current_y -= (size + 4) # Line spacing
+                current_y -= (size + 4)
 
-        # Page 1 Fields
-        # NOMBRE: [71.4, 595.08, 524.04, 631.92] -> Y ~ 610
-        draw_text(75, 610, data.get('nombre', ''), size=11)
-        
-        # NRP: [72.72, 519.24, 217.8, 569.4] -> Y ~ 535
-        draw_text(75, 535, data.get('nrp', ''))
-        
-        # DNI: [220.56, 519.24, 370.8, 569.4] -> Y ~ 535
-        draw_text(225, 535, data.get('dni', ''))
-        
-        # ASIGNATURA: [373.56, 519.24, 524.16, 569.4] -> Y ~ 535
-        draw_text(378, 535, data.get('asignatura', ''))
-        
-        # MOTIVO (Multiline): [72.72, 274.08, 523.68, 365.4] -> Top Y ~ 350
-        # Height is ~90.
-        draw_multiline(75, 350, data.get('motivo', ''), width=450)
-        
-        # ARTICULO: [206.4, 251.88, 261.48, 273.48] -> Y ~ 260
-        draw_text(210, 260, data.get('articulo', ''))
-        
-        # DIAS SOLICITADOS (Multiline potentially): [72.72, 402.48, 523.68, 470.52] -> Y ~ 450
-        draw_multiline(75, 450, data.get('dias_solicitados', ''), width=450)
-        
-        c.showPage() # End Page 1
-        
-        # --- PAGE 2 MAPPING ---
-        # NOMBRE: [80.52, 641.76, 338.28, 653.04] -> Y ~ 644
-        draw_text(85, 644, data.get('nombre', ''), size=9)
-        
-        # NRP: [390.96, 641.76, 508.32, 653.04] -> Y ~ 644
-        draw_text(395, 644, data.get('nrp', ''), size=9)
-        
-        # MOTIVO (Resumen/Short): [160.44, 617.76, 508.44, 628.68] -> Y ~ 620
-        # Taking substring if too long?
-        motivo_short = (data.get('motivo', '')[:50] + '...') if len(data.get('motivo', '')) > 50 else data.get('motivo', '')
-        draw_text(165, 620, motivo_short, size=9)
-        
-        # DIAS (Resumen): [316.991, 629.628, 508.804, 640.908] -> Y ~ 632
-        draw_text(320, 632, data.get('dias_solicitados', ''), size=9)
-        
-        # JUSTIFICACION DESC: [139.2, 557.538, 508.2, 580.338] -> Y ~ 565
-        draw_text(145, 565, data.get('descripcion_adjunto', ''), size=9)
-        
+        # --- PÁGINA 1 (ANEXO II) ---
+        # NOMBRE: etiqueta en Y~644, ponemos texto debajo en Y~630
+        draw_text(71, 628, data.get('nombre', ''), size=11)
+
+        # NRP: etiqueta en Y~574, ponemos texto debajo en Y~558
+        draw_text(71, 558, data.get('nrp', ''))
+
+        # DNI: misma línea que NRP, offset X=283
+        draw_text(283, 558, data.get('dni', ''))
+
+        # ASIGNATURA: misma línea, offset X~430
+        draw_text(430, 558, data.get('asignatura', ''))
+
+        # DIAS SOLICITADOS: etiqueta en Y~486, texto debajo en Y~468
+        draw_multiline(71, 468, data.get('dias_solicitados', ''), width=450)
+
+        # MOTIVO: etiqueta en Y~381, texto debajo en Y~360
+        draw_multiline(71, 360, data.get('motivo', ''), width=450)
+
+        # ARTICULO: justo después de "AL AMPARO DEL ARTÍCULO:" en Y~252
+        draw_text(210, 252, data.get('articulo', ''))
+
+        # FECHA: "Melilla, a __ de __ de __" en Y~206
+        draw_text(390, 195, data.get('dia_firma', ''))
+        draw_text(430, 195, data.get('mes_firma', ''))
+        draw_text(500, 195, data.get('anio_firma', ''))
+
+        c.showPage()  # Fin Página 1
+
+        # --- PÁGINA 2 (ANEXO I) ---
+        # D/Dª (nombre): Y~644
+        draw_text(71, 632, data.get('nombre', ''), size=9)
+
+        # NRP: Y~644 offset X=390
+        draw_text(390, 632, data.get('nrp', ''), size=9)
+
+        # Días: Y~619
+        draw_text(71, 607, data.get('dias_solicitados', ''), size=9)
+
+        # Motivo: Y~607 (line "por el siguiente motivo")
+        motivo_short = (data.get('motivo', '')[:60] + '...') if len(data.get('motivo', '')) > 60 else data.get('motivo', '')
+        draw_text(71, 595, motivo_short, size=9)
+
+        # Descripcion justificante: Y~583
+        draw_text(143, 583, data.get('descripcion_adjunto', ''), size=9)
+
         c.save()
         packet.seek(0)
         
