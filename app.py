@@ -184,9 +184,10 @@ def generate_permiso():
         draw_text(207, 252, data.get('articulo', ''))
 
         # FECHA: Melilla, a ... de ... de ...
-        draw_text(395, 206, data.get('dia_firma', ''))
-        draw_text(425, 206, data.get('mes_firma', ''))
-        draw_text(495, 206, data.get('anio_firma', ''))
+        # Eliminado por petición del usuario: la fecha no debe aparecer en la primera hoja
+        # draw_text(395, 206, data.get('dia_firma', ''))
+        # draw_text(425, 206, data.get('mes_firma', ''))
+        # draw_text(495, 206, data.get('anio_firma', ''))
 
         c.showPage()  # Fin Página 1
 
