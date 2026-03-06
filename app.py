@@ -292,6 +292,7 @@ def generate_permiso():
             f"signaturePositionOnPageLowerLeftY=150\n"
             f"signaturePositionOnPageUpperRightX=550\n"
             f"signaturePositionOnPageUpperRightY=205\n"
+            f"signatureCertificationLevel=2\n"
         )
         
         final_filename = f"Solicitud_Permiso_{safe_name}_{timestamp_str}_Rellena.pdf"
