@@ -162,29 +162,28 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: Etiqueta {{nombre}} en 85, 618
+        # NOMBRE: Etiqueta {{nombre}} en 85.1, 618.1
         draw_text(85, 618, data.get('nombre', ''), size=11)
 
-        # NRP: Etiqueta {{nrp} en 85.7, 558
-        draw_text(85, 558, data.get('nrp', ''))
+        # NRP: Etiqueta {{nrp} en 85.7, 558.6
+        draw_text(86, 558, data.get('nrp', ''))
 
-        # DNI: Tras etiqueta {{dni}} en 225.8, 560.5
+        # DNI: Cerca de etiqueta {{dni}} (detectado anteriormente cerca de X=226)
         draw_text(226, 560, data.get('dni', ''))
 
-        # ASIGNATURA: Tras etiqueta {{asignatura}} en 378.3, 561
+        # ASIGNATURA: Cerca de etiqueta {{asignatura}} (detectado anteriormente cerca de X=378)
         draw_text(378, 561, data.get('asignatura', ''))
 
-        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en 82.5, 458
+        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en 82.5, 458.4
         draw_multiline(82, 458, data.get('dias_solicitados', ''), width=450)
 
-        # MOTIVO: Etiqueta {{motivo}} en 82.5, 353
+        # MOTIVO: Etiqueta {{motivo}} en 82.5, 353.7
         draw_multiline(82, 353, data.get('motivo', ''), width=450)
 
-        # ARTICULO: Etiqueta {{articulo}} en 207, 252
+        # ARTICULO: Etiqueta {{articulo}} en 207.4, 252.6
         draw_text(207, 252, data.get('articulo', ''))
 
-        # FECHA: Detectado "fecha firma digital" en 450, 206
-        # Ajustamos para que caiga en el hueco de "Melilla, a ... de ... de ..."
+        # FECHA: Melilla, a ... de ... de ...
         draw_text(395, 206, data.get('dia_firma', ''))
         draw_text(425, 206, data.get('mes_firma', ''))
         draw_text(495, 206, data.get('anio_firma', ''))
@@ -192,21 +191,24 @@ def generate_permiso():
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        # D/Dª (nombre): Etiqueta {{nombre}} en 53, 644
+        # D/Dª (nombre arriba): Etiqueta {{nombre}} en 53, 644.2
         draw_text(53, 644, data.get('nombre', ''), size=9)
 
-        # NRP: Etiqueta {{nrp}} en 383, 644
-        draw_text(383, 644, data.get('nrp', ''), size=9)
+        # con NRP (arriba): Etiqueta {{nrp}} en 344.1, 644.2
+        draw_text(344, 644, data.get('nrp', ''), size=9)
 
-        # Días: Etiqueta {{dias_solicitados}} en 299, 632
+        # Días: Etiqueta {{dias_solicitados}} en 299, 632.1
         draw_text(299, 632, data.get('dias_solicitados', ''), size=9)
 
-        # Motivo: Etiqueta {{motivo}} en 153, 619
+        # Motivo: Etiqueta {{motivo}} en 150.7, 619.9
         motivo_short = (data.get('motivo', '')[:80] + '...') if len(data.get('motivo', '')) > 80 else data.get('motivo', '')
-        draw_text(153, 619, motivo_short, size=9)
+        draw_text(151, 620, motivo_short, size=9)
 
-        # Descripcion justificante: Etiqueta {{justificante}} en 150, 569
-        draw_text(150, 569, data.get('descripcion_adjunto', ''), size=9)
+        # Descripcion justificante: Etiqueta {{justificante}} en 149.9, 569.7
+        draw_text(150, 570, data.get('descripcion_adjunto', ''), size=9)
+
+        # Nombre (Inspección Educativa): Nueva etiqueta {{nombre}} en 297.2, 317.1
+        draw_text(297, 317, data.get('nombre', ''), size=9)
 
         c.save()
         packet.seek(0)
