@@ -162,50 +162,51 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: etiqueta en Y~644.7, ponemos texto en Y=632
-        draw_text(71, 632, data.get('nombre', ''), size=11)
+        # NOMBRE: Etiqueta {{nombre}} en 85, 618
+        draw_text(85, 618, data.get('nombre', ''), size=11)
 
-        # NRP: etiqueta en Y~574.2, ponemos texto en Y=562
-        draw_text(132, 562, data.get('nrp', ''))
+        # NRP: Etiqueta {{nrp} en 85.7, 558
+        draw_text(85, 558, data.get('nrp', ''))
 
-        # DNI: etiqueta en Y~574.2, offset X=283
-        draw_text(283, 562, data.get('dni', ''))
+        # DNI: Tras etiqueta {{dni}} en 225.8, 560.5
+        draw_text(226, 560, data.get('dni', ''))
 
-        # ASIGNATURA: offset X~430
-        draw_text(430, 562, data.get('asignatura', ''))
+        # ASIGNATURA: Tras etiqueta {{asignatura}} en 378.3, 561
+        draw_text(378, 561, data.get('asignatura', ''))
 
-        # DIAS SOLICITADOS: etiqueta en Y~486.1, texto en Y=474
-        draw_multiline(71, 474, data.get('dias_solicitados', ''), width=450)
+        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en 82.5, 458
+        draw_multiline(82, 458, data.get('dias_solicitados', ''), width=450)
 
-        # MOTIVO: etiqueta en Y~380.9, texto en Y=368
-        draw_multiline(71, 368, data.get('motivo', ''), width=450)
+        # MOTIVO: Etiqueta {{motivo}} en 82.5, 353
+        draw_multiline(82, 353, data.get('motivo', ''), width=450)
 
-        # ARTICULO: etiqueta en Y~252.6, texto en Y=252
-        draw_text(210, 252, data.get('articulo', ''))
+        # ARTICULO: Etiqueta {{articulo}} en 207, 252
+        draw_text(207, 252, data.get('articulo', ''))
 
-        # FECHA: "Melilla, a __ de __ de __" en Y~206
-        draw_text(390, 195, data.get('dia_firma', ''))
-        draw_text(430, 195, data.get('mes_firma', ''))
-        draw_text(500, 195, data.get('anio_firma', ''))
+        # FECHA: Detectado "fecha firma digital" en 450, 206
+        # Ajustamos para que caiga en el hueco de "Melilla, a ... de ... de ..."
+        draw_text(395, 206, data.get('dia_firma', ''))
+        draw_text(425, 206, data.get('mes_firma', ''))
+        draw_text(495, 206, data.get('anio_firma', ''))
 
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        # D/Dª (nombre): etiqueta Y~644.2, texto Y=644? No, subir un poco.
-        draw_text(85, 644, data.get('nombre', ''), size=9)
+        # D/Dª (nombre): Etiqueta {{nombre}} en 53, 644
+        draw_text(53, 644, data.get('nombre', ''), size=9)
 
-        # NRP: offset X=395
-        draw_text(395, 644, data.get('nrp', ''), size=9)
+        # NRP: Etiqueta {{nrp}} en 383, 644
+        draw_text(383, 644, data.get('nrp', ''), size=9)
 
-        # Días: etiqueta Y~631.9, texto Y=620
-        draw_text(85, 620, data.get('dias_solicitados', ''), size=9)
+        # Días: Etiqueta {{dias_solicitados}} en 299, 632
+        draw_text(299, 632, data.get('dias_solicitados', ''), size=9)
 
-        # Motivo: etiqueta Y~619.9, texto Y=608
+        # Motivo: Etiqueta {{motivo}} en 153, 619
         motivo_short = (data.get('motivo', '')[:80] + '...') if len(data.get('motivo', '')) > 80 else data.get('motivo', '')
-        draw_text(85, 608, motivo_short, size=9)
+        draw_text(153, 619, motivo_short, size=9)
 
-        # Descripcion justificante: etiqueta Y~595.7, texto Y=583
-        draw_text(150, 583, data.get('descripcion_adjunto', ''), size=9)
+        # Descripcion justificante: Etiqueta {{justificante}} en 150, 569
+        draw_text(150, 569, data.get('descripcion_adjunto', ''), size=9)
 
         c.save()
         packet.seek(0)
