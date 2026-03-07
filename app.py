@@ -162,58 +162,54 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: Etiqueta {{nombre}} en X=85.1, Y=618.1
-        # El formulario tiene "DEL PROFESOR/A:" en esa línea.
-        draw_text(182, 618, data.get('nombre', ''), size=11)
+        # NOMBRE: Etiqueta {{nombre}} en 85, 618
+        draw_text(85, 618, data.get('nombre', ''), size=11)
 
-        # NRP: Etiqueta {{nrp} en X=85.7, Y=558.6
-        # Ajustamos a la derecha de "N.R.P." (X=132)
-        draw_text(165, 558, data.get('nrp', ''))
+        # NRP: Etiqueta {{nrp} en 86, 559
+        draw_text(86, 559, data.get('nrp', ''))
 
-        # DNI: Estimamos X=315 basándonos en la etiqueta D.N.I. (X=282.9)
-        draw_text(315, 558, data.get('dni', ''))
+        # DNI: Etiqueta {{dni}} estimada en 226, 560
+        draw_text(226, 560, data.get('dni', ''))
 
-        # ASIGNATURA: Estimamos X=485 basándonos en la etiqueta fija (X=416.7)
-        draw_text(485, 558, data.get('asignatura', ''))
+        # ASIGNATURA: Etiqueta {{asignatura}} estimada en 378, 561
+        draw_text(378, 561, data.get('asignatura', ''))
 
-        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en X=82.5, Y=458.4
+        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en 82, 458
         draw_multiline(82, 458, data.get('dias_solicitados', ''), width=450)
 
-        # MOTIVO: Etiqueta {{motivo}} en X=82.5, Y=353.7
-        draw_multiline(82, 353, data.get('motivo', ''), width=450)
+        # MOTIVO: Etiqueta {{motivo}} en 82, 354
+        draw_multiline(82, 354, data.get('motivo', ''), width=450)
 
-        # ARTICULO: Etiqueta {{articulo}} en X=207.4, Y=252.6
-        draw_text(207, 252, data.get('articulo', ''))
+        # ARTICULO: Etiqueta {{articulo}} en 207, 252
+        draw_text(207, 253, data.get('articulo', ''))
 
-        # FIRMA: El usuario puso {{nombre}} en X=474.9, Y=159.0 (al lado de Fdo.:)
+        # FIRMA (Pág 1): Etiqueta {{nombre}} al lado de Fdo.: en 475, 159
         draw_text(475, 159, data.get('nombre', ''), size=9)
 
         # FECHA: Melilla, a ... de ... de ...
-        # (Se mantiene comentado por petición previa)
-        # draw_text(395, 206, data.get('dia_firma', ''))
-        # draw_text(425, 206, data.get('mes_firma', ''))
-        # draw_text(495, 206, data.get('anio_firma', ''))
+        # (Se mantiene oculto por petición previa)
+        # draw_text(395, 206, ...)
 
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        # D/Dª: etiqueta {{nombre}} en X=53.0, Y=644.2. Offset X=85
-        draw_text(85, 644, data.get('nombre', ''), size=9)
+        # D/Dª: etiqueta {{nombre}} en 53, 644
+        draw_text(53, 644, data.get('nombre', ''), size=9)
 
-        # con NRP: etiqueta {{nrp}} en X=344.1, Y=644.2. Offset X=385
-        draw_text(385, 644, data.get('nrp', ''), size=9)
+        # con NRP: etiqueta {{nrp}} en 344, 644
+        draw_text(344, 644, data.get('nrp', ''), size=9)
 
-        # días: etiqueta {{dias_solicitados}} en X=299.0, Y=632.1. Offset X=325
-        draw_text(325, 632, data.get('dias_solicitados', ''), size=9)
+        # días: etiqueta {{dias_solicitados}} en 299, 632
+        draw_text(299, 632, data.get('dias_solicitados', ''), size=9)
 
-        # motivo: etiqueta {{motivo}} en X=150.7, Y=619.9. Offset X=215
+        # motivo: etiqueta {{motivo}} en 151, 620
         motivo_short = (data.get('motivo', '')[:80] + '...') if len(data.get('motivo', '')) > 80 else data.get('motivo', '')
-        draw_text(215, 619, motivo_short, size=9)
+        draw_text(151, 620, motivo_short, size=9)
 
-        # justificante: etiqueta {{justificante}} en X=149.9, Y=569.7. Offset X=230
-        draw_text(230, 569, data.get('descripcion_adjunto', ''), size=9)
+        # justificante: etiqueta {{justificante}} en 150, 570
+        draw_text(150, 570, data.get('descripcion_adjunto', ''), size=9)
 
-        # Nombre (Inspección Educativa arriba): etiqueta {{nombre}} en 297.2, 317.1
+        # Nombre (Inspección Educativa): etiqueta {{nombre}} en 297, 317
         draw_text(297, 317, data.get('nombre', ''), size=9)
 
         c.save()
