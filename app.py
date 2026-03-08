@@ -217,9 +217,9 @@ def generate_permiso():
             if label in anchors:
                 matches = [a for a in anchors[label] if a[0] == page_idx]
                 if matches and len(matches) > occurrence:
-                    found_page, x, y = matches[occurrence]
+                    found_page, x, y, detected_size = matches[occurrence]
                 elif matches: # fallback to first match on that page if occurrence not found
-                    found_page, x, y = matches[0]
+                    found_page, x, y, detected_size = matches[0]
             
             # Switch page if needed (though we usually handle pages sequentially)
             # For simplicity in this logic, we assume we are on the correct c.showPage() cycle
