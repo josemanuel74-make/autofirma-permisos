@@ -230,16 +230,6 @@ def generate_permiso():
                 draw_text(x, y, text, size)
 
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: {{nombre}} (primera aparición en pág 1)
-        draw_at_anchor('{{nombre}}', data.get('nombre', ''), 85, 618, page_idx=0, size=11, occurrence=1) # The one at top is actually 2nd in extraction order sometimes, let's use occurrence logic or coordinate logic.
-        # Wait, my research showed:
-        # Page 1: {{nombre}} at (85.09, 618.14)
-        # Page 1: {{nombre}} at (474.90, 159.02)
-        # In my manual extraction, 159.02 came first? Let's check.
-        # Page 1: {{articulo}} at (207.37, 252.57)
-        # Page 1: {{nombre}} at (474.90, 159.02)
-        # Page 1: {{nombre}} at (85.09, 618.14)
-        
         # Actually, let's just use the helper to find the best match by Y coordinate if multiple exist.
         def get_best_anchor(label, page_idx, target_y_approx):
             if label not in anchors: return None
@@ -288,6 +278,8 @@ def generate_permiso():
         
         draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1)
         draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1)
+        # New NRP tag at the end of page 2
+        draw_smart('{{nrp}}', data.get('nrp', ''), 108, 304, 1)
 
         c.save()
         packet.seek(0)
