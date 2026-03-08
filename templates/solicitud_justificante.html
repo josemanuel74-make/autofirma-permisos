@@ -309,19 +309,38 @@
             const btn = document.getElementById('signBtn');
             const form = document.getElementById('justificanteForm');
             showMessage("Generando PDF dinámico...", "info");
+            console.log("Submitting justificante form...");
 
             const formData = new FormData(form);
             try {
                 const res = await fetch('/generate_justificante', { method: 'POST', body: formData });
+                console.log("PDF Generation response status:", res.status);
                 const result = await res.json();
+
                 if (result.status === 'success') {
-                    AutoScript.sign(result.pdf_base64, "SHA256withRSA", "PAdES", result.extra_params,
-                        onSignSuccess, (t, m) => { showMessage("Error: " + m, "error"); btn.disabled = false; });
+                    console.log("PDF Generated successfully. Base64 length:", result.pdf_base64.length);
+                    console.log("Extra params:", result.extra_params);
+
+                    if (typeof AutoScript === 'undefined') {
+                        showMessage("Error: El motor de AutoFirma (AutoScript) no se ha cargado correctamente.", "error");
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    console.log("Invocando AutoScript.sign...");
+                    AutoScript.sign(result.pdf_base64, "SHA256withRSA", "PAdES", result.extra_params || null,
+                        onSignSuccess, (t, m) => {
+                            console.error("AutoScript Error:", t, m);
+                            showMessage("Error de AutoFirma: " + m, "error");
+                            btn.disabled = false;
+                        });
                 } else {
-                    showMessage("Error: " + result.message, "error");
+                    console.error("Server Error:", result.message);
+                    showMessage("Error del servidor: " + result.message, "error");
                     btn.disabled = false;
                 }
             } catch (err) {
+                console.error("Fetch Exception:", err);
                 showMessage("Error de red: " + err, "error");
                 btn.disabled = false;
             }

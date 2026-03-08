@@ -271,24 +271,21 @@ def generate_justificante():
         adjunto_content = None
         adjunto_ext = None
         
-        # Check files first (standard multipart)
         if 'archivo_adjunto' in request.files:
             f = request.files['archivo_adjunto']
             if f.filename != '':
                 adjunto_content = f.read()
                 adjunto_ext = f.filename.split('.')[-1].lower()
         
-        # Check base64 (from JS FileReader)
         if not adjunto_content and data.get('adjunto_base64'):
             try:
                 adjunto_content = base64.b64decode(data.get('adjunto_base64'))
-                adjunto_name = data.get('adjunto_nombre', 'archivo.pdf')
+                adjunto_name = data.get('adjunto_nombre', 'archivo')
                 adjunto_ext = adjunto_name.split('.')[-1].lower()
             except: pass
 
         if adjunto_content:
             try:
-                from PIL import Image
                 if adjunto_ext in ['jpg', 'jpeg', 'png']:
                     img = Image.open(io.BytesIO(adjunto_content))
                     if img.mode != 'RGB': img = img.convert('RGB')
@@ -306,14 +303,17 @@ def generate_justificante():
         out.seek(0)
         pdf_b64 = base64.b64encode(out.read()).decode('utf-8')
         
+        fecha_corta = time.strftime('%d/%m/%Y a las %H:%M')
         extra = (
             f"signaturePage=1\n"
-            f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {time.strftime('%d/%m/%Y %H:%M')}\n"
+            f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {fecha_corta}\n"
             f"signaturePositionOnPageLowerLeftX=320\n"
             f"signaturePositionOnPageLowerLeftY=170\n"
             f"signaturePositionOnPageUpperRightX=550\n"
             f"signaturePositionOnPageUpperRightY=225\n"
+            f"signatureCertificationLevel=2\n"
         )
+        print(f"DEBUG: Justificante generated. PDF Size: {len(pdf_b64)} chars. ExtraParams:\n{extra}")
         return jsonify({"status": "success", "pdf_base64": pdf_b64, "extra_params": extra})
     except Exception as e:
         import traceback
