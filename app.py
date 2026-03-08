@@ -100,8 +100,9 @@ def permiso_form():
 def get_pdf_anchors(template_path):
     """
     Scans a PDF for labels like {{label}} and returns their coordinates.
-    Returns: { '{{label}}': [(page_index, x, y), ...] }
+    Now more robust: handles leading spaces and partial matches.
     """
+    import re
     anchors = {}
     if not os.path.exists(template_path):
         return anchors
@@ -110,14 +111,33 @@ def get_pdf_anchors(template_path):
         reader = PdfReader(template_path)
         for i, page in enumerate(reader.pages):
             def visitor(text, cm, tm, font_dict, font_size):
-                clean = text.strip()
-                if '{{' in clean and '}}' in clean:
-                    # Some labels might be split across chunks, but pypdf usually 
-                    # provides them whole if they are in the same Tj/TJ.
-                    # We store list of occurrences as some labels (like {{nombre}}) appear multiple times.
-                    if clean not in anchors:
-                        anchors[clean] = []
-                    anchors[clean].append((i, tm[4], tm[5]))
+                # Search for anything like {{word}} or {{word} (in case of typos)
+                matches = list(re.finditer(r'\{\{([a-zA-Z0-9_]+)\b\}?', text))
+                if not matches:
+                    return
+
+                # Calculate base coordinates
+                base_x = tm[4]
+                base_y = tm[5]
+                
+                for m in matches:
+                    tag_name = m.group(1)
+                    full_match = m.group(0)
+                    
+                    # Estimate shift if there is text preceding the tag in this chunk
+                    preceding_text = text[:m.start()]
+                    # Approximate width (very rough: ~0.5 of font_size per char)
+                    # This is better than nothing if the chunk has leading spaces.
+                    shift_x = len(preceding_text) * (font_size * 0.5) if preceding_text else 0
+                    
+                    # Store with and without braces for easier lookup
+                    key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
+                    if key not in anchors:
+                        anchors[key] = []
+                    
+                    # Reject (0,0) unless truly first page first char
+                    if base_x > 0.5 or base_y > 0.5:
+                        anchors[key].append((i, base_x + shift_x, base_y))
             
             page.extract_text(visitor_text=visitor)
     except Exception as e:
@@ -247,11 +267,14 @@ def generate_permiso():
 
         # PÁGINA 1
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
-        draw_smart('{{nrp}', data.get('nrp', ''), 86, 559, 0)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 86, 559, 0) # Use canonical key
         draw_smart('{{dni}}', data.get('dni', ''), 226, 560, 0)
         draw_smart('{{asignatura}}', data.get('asignatura', ''), 378, 561, 0)
-        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True)
-        draw_smart('{{motivo}}', data.get('motivo', ''), 82, 354, 0, multiline=True)
+        
+        # Use multiline for dias and motivo on BOTH pages if needed
+        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True, width=450)
+        draw_smart('{{motivo}}', data.get('motivo', ''), 82, 354, 0, multiline=True, width=450)
+        
         draw_smart('{{articulo}}', data.get('articulo', ''), 207, 253, 0)
         draw_smart('{{nombre}}', data.get('nombre', ''), 475, 159, 0, size=9)
 
@@ -260,11 +283,16 @@ def generate_permiso():
         # --- PÁGINA 2 (ANEXO I) ---
         draw_smart('{{nombre}}', data.get('nombre', ''), 53, 644, 1, size=9)
         draw_smart('{{nrp}}', data.get('nrp', ''), 344, 644, 1, size=9)
+        
+        # In second page, motive is often shorter but let's allow multiline just in case
         draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 299, 632, 1, size=9)
         
         motivo_val = data.get('motivo', '')
-        motivo_short = (motivo_val[:80] + '...') if len(motivo_val) > 80 else motivo_val
-        draw_smart('{{motivo}}', motivo_short, 151, 620, 1, size=9)
+        # If it fits in one line, draw it. If not, multiline.
+        if len(motivo_val) > 60:
+            draw_smart('{{motivo}}', motivo_val, 151, 620, 1, size=8, multiline=True, width=400)
+        else:
+            draw_smart('{{motivo}}', motivo_val, 151, 620, 1, size=9)
         
         draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1, size=9)
         draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1, size=9)
