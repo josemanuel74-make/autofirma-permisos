@@ -251,16 +251,56 @@ def generate_justificante():
             text_adj = f"Doc. Adjunta: {adjunto_desc}" if adjunto_desc else f"Archivo Adjunto: {adjunto_name}"
             c.drawString(start_x, row_y, text_adj)
 
+        # Prepare Overlay
         c.save()
         packet.seek(0)
+        overlay_reader = PdfReader(packet)
         
+        # Merge with template
         reader = PdfReader(template_path)
         writer = PdfWriter()
-        overlay = PdfReader(packet)
-        page = reader.pages[0]
-        page.merge_page(overlay.pages[0])
-        writer.add_page(page)
         
+        # Add template pages (merging overlay on page 1)
+        for i in range(len(reader.pages)):
+            page = reader.pages[i]
+            if i == 0:
+                page.merge_page(overlay_reader.pages[0])
+            writer.add_page(page)
+
+        # 4. APPEND ATTACHMENT
+        adjunto_content = None
+        adjunto_ext = None
+        
+        # Check files first (standard multipart)
+        if 'archivo_adjunto' in request.files:
+            f = request.files['archivo_adjunto']
+            if f.filename != '':
+                adjunto_content = f.read()
+                adjunto_ext = f.filename.split('.')[-1].lower()
+        
+        # Check base64 (from JS FileReader)
+        if not adjunto_content and data.get('adjunto_base64'):
+            try:
+                adjunto_content = base64.b64decode(data.get('adjunto_base64'))
+                adjunto_name = data.get('adjunto_nombre', 'archivo.pdf')
+                adjunto_ext = adjunto_name.split('.')[-1].lower()
+            except: pass
+
+        if adjunto_content:
+            try:
+                from PIL import Image
+                if adjunto_ext in ['jpg', 'jpeg', 'png']:
+                    img = Image.open(io.BytesIO(adjunto_content))
+                    if img.mode != 'RGB': img = img.convert('RGB')
+                    img_pdf_io = io.BytesIO()
+                    img.save(img_pdf_io, format='PDF')
+                    img_pdf_io.seek(0)
+                    writer.append(PdfReader(img_pdf_io))
+                elif adjunto_ext == 'pdf':
+                    writer.append(PdfReader(io.BytesIO(adjunto_content)))
+            except Exception as e_merge:
+                print(f"WARNING: Could not merge attachment to justificante: {str(e_merge)}")
+
         out = io.BytesIO()
         writer.write(out)
         out.seek(0)
