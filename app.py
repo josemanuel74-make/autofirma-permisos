@@ -276,7 +276,8 @@ def generate_permiso():
         draw_smart('{{motivo}}', data.get('motivo', ''), 82, 354, 0, multiline=True, width=450)
         
         draw_smart('{{articulo}}', data.get('articulo', ''), 207, 253, 0)
-        draw_smart('{{nombre}}', data.get('nombre', ''), 475, 159, 0, size=9)
+        # Applying same fix as Page 2: lowering Y (159->150) and shifting left (-70px)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 475, 150, 0, size=9, offset_x=-70)
 
         c.showPage()  # Fin Página 1
 
