@@ -96,7 +96,8 @@ def get_pdf_anchors(template_path):
         for i, page in enumerate(reader.pages):
             def visitor(text, cm, tm, font_dict, font_size):
                 # We normalize the search to be more lenient
-                matches = list(re.finditer(r'\{\{([a-zA-Z0-9_]+)\b\}?', text))
+                # Matches {{label}}, {{label}, or just {{label (in case of extraction artifacts)
+                matches = list(re.finditer(r'\{\{([a-zA-Z0-9_]+)', text))
                 if not matches:
                     return
 
@@ -116,7 +117,9 @@ def get_pdf_anchors(template_path):
                         elif "bold" in fname: font_name = "Helvetica-Bold"
                     
                     # Exact shift using reportlab's metrics
-                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size)
+                    # Added a small +2px fudge factor as reportlab's width is often 
+                    # slightly tighter than the actual PDF rendering gap.
+                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size) + 2
                     
                     key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
                     if key not in anchors:
@@ -124,8 +127,16 @@ def get_pdf_anchors(template_path):
                     
                     # Reject (0,0) as it's usually a coordinate system error in visitor
                     if base_x > 0.001 or base_y > 0.001:
-                        # Store (page, x, y, size)
-                        anchors[key].append((i, base_x + shift_x, base_y, font_size))
+                        final_x = base_x + shift_x
+                        # DE-DUPLICATE: avoid adding the same anchor multiple times 
+                        # (happens if text is drawn twice for effects or shadow)
+                        is_dup = False
+                        for existing in anchors[key]:
+                            if existing[0] == i and abs(existing[1] - final_x) < 2 and abs(existing[2] - base_y) < 2:
+                                is_dup = True
+                                break
+                        if not is_dup:
+                            anchors[key].append((i, final_x, base_y, font_size))
             
             page.extract_text(visitor_text=visitor)
     except Exception as e:
