@@ -145,13 +145,30 @@ def generate_justificante():
         nombre_profe = data.get('nombre', 'Anonimo')
         absence_mode = data.get('absence_mode', 'specific')
         
-        template_path = "justificacionfaltasprofesores.pdf"
+        # Robust template path finding
+        template_name = "justificacionfaltasprofesores.pdf"
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(base_dir, template_name)
+        
         if not os.path.exists(template_path):
-            # Try with capitalized name
-            template_path = "JustificacionFaltasProfesores.pdf"
-            
+            print(f"DEBUG: Template not found at {template_path}. Search in {base_dir}...")
+            # Try case-insensitive search
+            try:
+                files = os.listdir(base_dir)
+                for f in files:
+                    if f.lower() == template_name.lower():
+                        template_path = os.path.join(base_dir, f)
+                        print(f"DEBUG: Found match: {template_path}")
+                        break
+            except Exception as e_ls:
+                print(f"DEBUG: Error listing dir: {e_ls}")
+
         if not os.path.exists(template_path):
-             return jsonify({"status": "error", "message": f"No se encuentra la plantilla: {template_path}"}), 404
+            cwd = os.getcwd()
+            return jsonify({
+                "status": "error", 
+                "message": f"No se encuentra la plantilla: {template_name} en {base_dir}. (CWD: {cwd})"
+            }), 404
 
         anchors = get_pdf_anchors(template_path)
         
