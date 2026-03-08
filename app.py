@@ -117,8 +117,11 @@ def get_pdf_anchors(template_path):
                         elif "bold" in fname: font_name = "Helvetica-Bold"
                     
                     # Exact shift using reportlab's metrics
-                    # Removed +2px fudge factor as it was pushing text too far right.
-                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size)
+                    # THE REASON FOR MISALIGNMENT:
+                    # Reportlab's Times-Roman width is often tighter than how 
+                    # specialized PDF printers render 'con NRP  '.
+                    # Adding a +6px fudge factor to ensure it starts AFTER the label.
+                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size) + 6
                     
                     key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
                     if key not in anchors:
