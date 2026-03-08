@@ -154,39 +154,41 @@ def generate_justificante():
         absence_mode = data.get('absence_mode', 'specific')
         
         template_path = "justificacionfaltasprofesores.pdf"
-        # We don't necessarily need anchors if we are drawing the table from scratch in a known white-out zone,
-        # but we keep them for the header fields (nombre, dni, nrp)
         anchors = get_pdf_anchors(template_path)
         
         packet = io.BytesIO()
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
+        from reportlab.lib.utils import simpleSplit
         c = canvas.Canvas(packet, pagesize=A4)
         
-        def draw_at_anchor(label, text, fallback_x, fallback_y, size=10):
-            matches = anchors.get(label, [])
-            if matches:
-                a = matches[0]
-                c.setFont("Helvetica", size or a[3])
-                c.drawString(a[1], a[2], text)
-            else:
-                c.setFont("Helvetica", size)
-                c.drawString(fallback_x, fallback_y, text)
+        # Look for the new anchor <<texto>> or fallback
+        anchor_key = '<<texto>>'
+        matches = anchors.get(anchor_key, [])
+        if matches:
+            a = matches[0]
+            start_x, start_y = a[1], a[2]
+        else:
+            # Fallback if anchor not found
+            start_x, start_y = 70, 630
 
-        # 1. Fill Header
-        draw_at_anchor('{{nombre}}', data.get('nombre', ''), 140, 688)
-        draw_at_anchor('{{dni}}', data.get('dni', ''), 310, 688)
-        draw_at_anchor('{{nrp}}', data.get('nrp', ''), 440, 688)
+        # 1. DRAW HEADER TEXT DYNAMICALLY
+        header_text = (
+            f"D/Dª {data.get('nombre', '')} con DNI {data.get('dni', '')} y NRP {data.get('nrp', '')} "
+            f"le comunico a usted que no pude asistir al Centro a impartir mis clases y/o el horario "
+            f"complementario, los días que continuación se indican, por los siguientes motivos que igualmente expreso:"
+        )
+        
+        c.setFont("Helvetica", 11)
+        lines = simpleSplit(header_text, "Helvetica", 11, 460)
+        curr_y = start_y
+        for line in lines:
+            c.drawString(start_x, curr_y, line)
+            curr_y -= 15
 
-        # 2. WHITE-OUT: Clean the original static table area
-        # Original table is roughly from Y=380 to Y=580
-        c.setFillColor(colors.white)
-        c.rect(70, 380, 460, 205, fill=1, stroke=0)
-        c.setFillColor(colors.black)
-
-        # 3. DRAW DYNAMIC TABLE
-        table_top = 580
+        # 2. DRAW DYNAMIC TABLE (below text)
+        table_top = curr_y - 20
         col_dia = 75
         col_hora = 150
         col_curso = 210
@@ -198,7 +200,6 @@ def generate_justificante():
         if absence_mode == 'range':
             f_ini = data.get('fecha_inicio', '')
             f_fin = data.get('fecha_fin', '')
-            # Format dates
             try:
                 if '-' in f_ini: f_ini = "/".join(f_ini.split('-')[::-1])
                 if '-' in f_fin: f_fin = "/".join(f_fin.split('-')[::-1])
@@ -218,49 +219,45 @@ def generate_justificante():
                 d = dias[i]
                 if '-' in d: d = "/".join(d.split('-')[::-1])
                 rows_to_draw.append({
-                    'dia': d,
-                    'hora': horas[i],
-                    'curso': cursos[i],
-                    'motivo': motivos[i]
+                    'dia': d, 'hora': horas[i], 'curso': cursos[i], 'motivo': motivos[i]
                 })
 
-        # Draw Table Headers
+        # Headers
         c.setFont("Helvetica-Bold", 10)
         c.drawString(col_dia, table_top - 15, "DÍA")
         c.drawString(col_hora, table_top - 15, "HORA")
         c.drawString(col_curso, table_top - 15, "CURSO")
         c.drawString(col_motivo, table_top - 15, "MOTIVOS")
         
-        # Header Line
         c.setLineWidth(1)
         c.line(70, table_top - 20, 530, table_top - 20)
         
-        # Draw Rows
+        # Rows
         c.setFont("Helvetica", 9)
-        curr_y = table_top - 35
+        row_y = table_top - 35
         for r in rows_to_draw:
-            c.drawString(col_dia, curr_y, r['dia'])
-            c.drawString(col_hora, curr_y, r['hora'])
-            c.drawString(col_curso, curr_y, r['curso'])
-            # Motivo can be long, truncate or multiline? 
-            # Simple truncation for now to avoid complexity in this step
+            if row_y < 150: # Simple break if too low
+                break
+            c.drawString(col_dia, row_y, r['dia'])
+            c.drawString(col_hora, row_y, r['hora'])
+            c.drawString(col_curso, row_y, r['curso'])
             m_text = r['motivo'][:45] + "..." if len(r['motivo']) > 48 else r['motivo']
-            c.drawString(col_motivo, curr_y, m_text)
+            c.drawString(col_motivo, row_y, m_text)
             
-            # Row line (subtle)
             c.setLineWidth(0.5)
             c.setStrokeColor(colors.lightgrey)
-            c.line(70, curr_y - 5, 530, curr_y - 5)
+            c.line(70, row_y - 5, 530, row_y - 5)
             c.setStrokeColor(colors.black)
-            
-            curr_y -= row_h
-            # Check for page overflow (simplified: keep it on one page for first test)
-            if curr_y < 300: break
+            row_y -= row_h
+
+        # "Participo a usted..." Text
+        row_y -= 20
+        c.setFont("Helvetica", 11)
+        c.drawString(start_x, row_y, "Lo que participo a usted a los efectos oportunos.")
 
         c.save()
         packet.seek(0)
         
-        # Merge
         reader = PdfReader(template_path)
         writer = PdfWriter()
         overlay = PdfReader(packet)
@@ -271,10 +268,8 @@ def generate_justificante():
         out = io.BytesIO()
         writer.write(out)
         out.seek(0)
-        
         pdf_b64 = base64.b64encode(out.read()).decode('utf-8')
         
-        # Signature area (same as before)
         extra = (
             f"signaturePage=1\n"
             f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {time.strftime('%d/%m/%Y %H:%M')}\n"
@@ -283,8 +278,11 @@ def generate_justificante():
             f"signaturePositionOnPageUpperRightX=550\n"
             f"signaturePositionOnPageUpperRightY=225\n"
         )
-        
         return jsonify({"status": "success", "pdf_base64": pdf_b64, "extra_params": extra})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         import traceback
         traceback.print_exc()
