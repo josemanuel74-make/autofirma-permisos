@@ -97,6 +97,34 @@ def save_signature():
 def permiso_form():
     return render_template('solicitud_permiso.html')
 
+def get_pdf_anchors(template_path):
+    """
+    Scans a PDF for labels like {{label}} and returns their coordinates.
+    Returns: { '{{label}}': [(page_index, x, y), ...] }
+    """
+    anchors = {}
+    if not os.path.exists(template_path):
+        return anchors
+    
+    try:
+        reader = PdfReader(template_path)
+        for i, page in enumerate(reader.pages):
+            def visitor(text, cm, tm, font_dict, font_size):
+                clean = text.strip()
+                if '{{' in clean and '}}' in clean:
+                    # Some labels might be split across chunks, but pypdf usually 
+                    # provides them whole if they are in the same Tj/TJ.
+                    # We store list of occurrences as some labels (like {{nombre}}) appear multiple times.
+                    if clean not in anchors:
+                        anchors[clean] = []
+                    anchors[clean].append((i, tm[4], tm[5]))
+            
+            page.extract_text(visitor_text=visitor)
+    except Exception as e:
+        print(f"ERROR extracting anchors: {str(e)}")
+    
+    return anchors
+
 @app.route('/generate_permiso', methods=['POST'])
 def generate_permiso():
     try:
@@ -161,56 +189,85 @@ def generate_permiso():
                 c.drawString(x, current_y, line)
                 current_y -= (size + 4)
 
+        # --- DYNAMIC ANCHOR APPROACH ---
+        # We use the '+etiquetas' version to find WHERE to draw, 
+        # but we draw on the 'Definitivo' version to keep it clean.
+        labels_template = "Solicitud Permiso Definitivo+etiquetas.pdf"
+        anchors = get_pdf_anchors(labels_template)
+        
+        # Helper to draw using anchors with fallback
+        def draw_at_anchor(label, text, fallback_x, fallback_y, page_idx=0, size=10, multiline=False, width=450, occurrence=0):
+            if not text: return
+            
+            x, y = fallback_x, fallback_y
+            found_page = page_idx
+            
+            # Check if we have this anchor
+            if label in anchors:
+                matches = [a for a in anchors[label] if a[0] == page_idx]
+                if matches and len(matches) > occurrence:
+                    found_page, x, y = matches[occurrence]
+                elif matches: # fallback to first match on that page if occurrence not found
+                    found_page, x, y = matches[0]
+            
+            # Switch page if needed (though we usually handle pages sequentially)
+            # For simplicity in this logic, we assume we are on the correct c.showPage() cycle
+            
+            if multiline:
+                draw_multiline(x, y, text, width, size)
+            else:
+                draw_text(x, y, text, size)
+
         # --- PÁGINA 1 (ANEXO II) ---
-        # NOMBRE: Etiqueta {{nombre}} en 85, 618
-        draw_text(85, 618, data.get('nombre', ''), size=11)
+        # NOMBRE: {{nombre}} (primera aparición en pág 1)
+        draw_at_anchor('{{nombre}}', data.get('nombre', ''), 85, 618, page_idx=0, size=11, occurrence=1) # The one at top is actually 2nd in extraction order sometimes, let's use occurrence logic or coordinate logic.
+        # Wait, my research showed:
+        # Page 1: {{nombre}} at (85.09, 618.14)
+        # Page 1: {{nombre}} at (474.90, 159.02)
+        # In my manual extraction, 159.02 came first? Let's check.
+        # Page 1: {{articulo}} at (207.37, 252.57)
+        # Page 1: {{nombre}} at (474.90, 159.02)
+        # Page 1: {{nombre}} at (85.09, 618.14)
+        
+        # Actually, let's just use the helper to find the best match by Y coordinate if multiple exist.
+        def get_best_anchor(label, page_idx, target_y_approx):
+            if label not in anchors: return None
+            matches = [a for a in anchors[label] if a[0] == page_idx]
+            if not matches: return None
+            # Return match with closest Y
+            return min(matches, key=lambda a: abs(a[2] - target_y_approx))
 
-        # NRP: Etiqueta {{nrp} en 86, 559
-        draw_text(86, 559, data.get('nrp', ''))
+        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=10, multiline=False, width=450):
+            anchor = get_best_anchor(label, page_idx, fallback_y)
+            x, y = (anchor[1], anchor[2]) if anchor else (fallback_x, fallback_y)
+            if multiline:
+                draw_multiline(x, y, text, width, size)
+            else:
+                draw_text(x, y, text, size)
 
-        # DNI: Etiqueta {{dni}} estimada en 226, 560
-        draw_text(226, 560, data.get('dni', ''))
-
-        # ASIGNATURA: Etiqueta {{asignatura}} estimada en 378, 561
-        draw_text(378, 561, data.get('asignatura', ''))
-
-        # DIAS SOLICITADOS: Etiqueta {{dias_solicitados}} en 82, 458
-        draw_multiline(82, 458, data.get('dias_solicitados', ''), width=450)
-
-        # MOTIVO: Etiqueta {{motivo}} en 82, 354
-        draw_multiline(82, 354, data.get('motivo', ''), width=450)
-
-        # ARTICULO: Etiqueta {{articulo}} en 207, 252
-        draw_text(207, 253, data.get('articulo', ''))
-
-        # FIRMA (Pág 1): Etiqueta {{nombre}} al lado de Fdo.: en 475, 159
-        draw_text(475, 159, data.get('nombre', ''), size=9)
-
-        # FECHA: Melilla, a ... de ... de ...
-        # (Se mantiene oculto por petición previa)
-        # draw_text(395, 206, ...)
+        # PÁGINA 1
+        draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
+        draw_smart('{{nrp}', data.get('nrp', ''), 86, 559, 0)
+        draw_smart('{{dni}}', data.get('dni', ''), 226, 560, 0)
+        draw_smart('{{asignatura}}', data.get('asignatura', ''), 378, 561, 0)
+        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True)
+        draw_smart('{{motivo}}', data.get('motivo', ''), 82, 354, 0, multiline=True)
+        draw_smart('{{articulo}}', data.get('articulo', ''), 207, 253, 0)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 475, 159, 0, size=9)
 
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        # D/Dª: etiqueta {{nombre}} en 53, 644
-        draw_text(53, 644, data.get('nombre', ''), size=9)
-
-        # con NRP: etiqueta {{nrp}} en 344, 644
-        draw_text(344, 644, data.get('nrp', ''), size=9)
-
-        # días: etiqueta {{dias_solicitados}} en 299, 632
-        draw_text(299, 632, data.get('dias_solicitados', ''), size=9)
-
-        # motivo: etiqueta {{motivo}} en 151, 620
-        motivo_short = (data.get('motivo', '')[:80] + '...') if len(data.get('motivo', '')) > 80 else data.get('motivo', '')
-        draw_text(151, 620, motivo_short, size=9)
-
-        # justificante: etiqueta {{justificante}} en 150, 570
-        draw_text(150, 570, data.get('descripcion_adjunto', ''), size=9)
-
-        # Nombre (Inspección Educativa): etiqueta {{nombre}} en 297, 317
-        draw_text(297, 317, data.get('nombre', ''), size=9)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 53, 644, 1, size=9)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 344, 644, 1, size=9)
+        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 299, 632, 1, size=9)
+        
+        motivo_val = data.get('motivo', '')
+        motivo_short = (motivo_val[:80] + '...') if len(motivo_val) > 80 else motivo_val
+        draw_smart('{{motivo}}', motivo_short, 151, 620, 1, size=9)
+        
+        draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1, size=9)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1, size=9)
 
         c.save()
         packet.seek(0)

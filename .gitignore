@@ -13,6 +13,7 @@ registros_permisos.csv
 *.pdf
 !Solicitud Permiso.pdf
 !Solicitud Permiso Definitivo.pdf
+!Solicitud Permiso Definitivo+etiquetas.pdf
 
 # IDEs and OS
 .vscode/
