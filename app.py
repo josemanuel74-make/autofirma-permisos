@@ -100,9 +100,10 @@ def permiso_form():
 def get_pdf_anchors(template_path):
     """
     Scans a PDF for labels like {{label}} and returns their coordinates.
-    Now more robust: handles leading spaces and partial matches.
+    High precision: uses reportlab's stringWidth for exact shifting.
     """
     import re
+    from reportlab.pdfbase import pdfmetrics
     anchors = {}
     if not os.path.exists(template_path):
         return anchors
@@ -111,7 +112,7 @@ def get_pdf_anchors(template_path):
         reader = PdfReader(template_path)
         for i, page in enumerate(reader.pages):
             def visitor(text, cm, tm, font_dict, font_size):
-                # Search for anything like {{word}} or {{word} (in case of typos)
+                # We normalize the search to be more lenient
                 matches = list(re.finditer(r'\{\{([a-zA-Z0-9_]+)\b\}?', text))
                 if not matches:
                     return
@@ -122,22 +123,26 @@ def get_pdf_anchors(template_path):
                 
                 for m in matches:
                     tag_name = m.group(1)
-                    full_match = m.group(0)
-                    
-                    # Estimate shift if there is text preceding the tag in this chunk
                     preceding_text = text[:m.start()]
-                    # Approximate width (very rough: ~0.5 of font_size per char)
-                    # This is better than nothing if the chunk has leading spaces.
-                    shift_x = len(preceding_text) * (font_size * 0.5) if preceding_text else 0
                     
-                    # Store with and without braces for easier lookup
+                    # Detect font type for more accurate width calculation
+                    font_name = "Helvetica"
+                    if font_dict and "/BaseFont" in font_dict:
+                        fname = font_dict["/BaseFont"].lower()
+                        if "times" in fname: font_name = "Times-Roman"
+                        elif "bold" in fname: font_name = "Helvetica-Bold"
+                    
+                    # Exact shift using reportlab's metrics
+                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size)
+                    
                     key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
                     if key not in anchors:
                         anchors[key] = []
                     
-                    # Reject (0,0) unless truly first page first char
-                    if base_x > 0.5 or base_y > 0.5:
-                        anchors[key].append((i, base_x + shift_x, base_y))
+                    # Reject (0,0) as it's usually a coordinate system error in visitor
+                    if base_x > 0.001 or base_y > 0.001:
+                        # Store (page, x, y, size)
+                        anchors[key].append((i, base_x + shift_x, base_y, font_size))
             
             page.extract_text(visitor_text=visitor)
     except Exception as e:
@@ -257,13 +262,16 @@ def generate_permiso():
             # Return match with closest Y
             return min(matches, key=lambda a: abs(a[2] - target_y_approx))
 
-        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=10, multiline=False, width=450):
+        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=None, multiline=False, width=450):
             anchor = get_best_anchor(label, page_idx, fallback_y)
+            # Use detected size if available, otherwise use provided or default 10
+            draw_size = anchor[3] if anchor and len(anchor) > 3 else (size or 10)
             x, y = (anchor[1], anchor[2]) if anchor else (fallback_x, fallback_y)
+            
             if multiline:
-                draw_multiline(x, y, text, width, size)
+                draw_multiline(x, y, text, width, draw_size)
             else:
-                draw_text(x, y, text, size)
+                draw_text(x, y, text, draw_size)
 
         # PÁGINA 1
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
@@ -281,21 +289,19 @@ def generate_permiso():
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
-        draw_smart('{{nombre}}', data.get('nombre', ''), 53, 644, 1, size=9)
-        draw_smart('{{nrp}}', data.get('nrp', ''), 344, 644, 1, size=9)
-        
-        # In second page, motive is often shorter but let's allow multiline just in case
-        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 299, 632, 1, size=9)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 53, 644, 1)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 344, 644, 1)
+        draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 299, 632, 1)
         
         motivo_val = data.get('motivo', '')
-        # If it fits in one line, draw it. If not, multiline.
+        # For motivo on page 2, if it's long we use a smaller font and multiline
         if len(motivo_val) > 60:
-            draw_smart('{{motivo}}', motivo_val, 151, 620, 1, size=8, multiline=True, width=400)
+            draw_smart('{{motivo}}', motivo_val, 151, 620, 1, size=8, multiline=True, width=380)
         else:
-            draw_smart('{{motivo}}', motivo_val, 151, 620, 1, size=9)
+            draw_smart('{{motivo}}', motivo_val, 151, 620, 1)
         
-        draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1, size=9)
-        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1, size=9)
+        draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1)
+        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1)
 
         c.save()
         packet.seek(0)
