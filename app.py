@@ -251,11 +251,14 @@ def generate_permiso():
             # Return match with closest Y
             return min(matches, key=lambda a: abs(a[2] - target_y_approx))
 
-        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=None, multiline=False, width=450):
+        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=None, multiline=False, width=450, offset_x=0):
             anchor = get_best_anchor(label, page_idx, fallback_y)
             # Use detected size if available, otherwise use provided or default 10
             draw_size = anchor[3] if anchor and len(anchor) > 3 else (size or 10)
             x, y = (anchor[1], anchor[2]) if anchor else (fallback_x, fallback_y)
+            
+            # Apply manual offset if provided
+            x += offset_x
             
             if multiline:
                 draw_multiline(x, y, text, width, draw_size)
@@ -290,8 +293,8 @@ def generate_permiso():
             draw_smart('{{motivo}}', motivo_val, 151, 620, 1)
         
         draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1)
-        # Lowering the name and NRP to be closer to "Fdo.:" and the signature line
-        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 308, 1)
+        # Lowering the name and moving it 70px to the left to be "pegado" to "Fdo.:"
+        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 308, 1, offset_x=-70)
         # New NRP tag at the end of page 2
         draw_smart('{{nrp}}', data.get('nrp', ''), 108, 295, 1)
 
