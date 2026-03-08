@@ -151,84 +151,131 @@ def generate_justificante():
     try:
         data = request.form
         nombre_profe = data.get('nombre', 'Anonimo')
-        safe_name = "".join([c for c in nombre_profe if c.isalnum() or c == ' ']).replace(' ', '_')
-        timestamp_str = time.strftime('%Y%m%d_%H%M%S')
+        absence_mode = data.get('absence_mode', 'specific')
         
         template_path = "justificacionfaltasprofesores.pdf"
+        # We don't necessarily need anchors if we are drawing the table from scratch in a known white-out zone,
+        # but we keep them for the header fields (nombre, dni, nrp)
         anchors = get_pdf_anchors(template_path)
         
         packet = io.BytesIO()
         from reportlab.pdfgen import canvas
         from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
         c = canvas.Canvas(packet, pagesize=A4)
         
-        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=None, offset_x=0, offset_y=0):
+        def draw_at_anchor(label, text, fallback_x, fallback_y, size=10):
             matches = anchors.get(label, [])
-            page_matches = [m for m in matches if m[0] == page_idx]
-            if page_matches:
-                # Use first match
-                anchor = page_matches[0]
-                x, y, draw_size = anchor[1], anchor[2], (size or anchor[3])
+            if matches:
+                a = matches[0]
+                c.setFont("Helvetica", size or a[3])
+                c.drawString(a[1], a[2], text)
             else:
-                x, y, draw_size = fallback_x, fallback_y, (size or 10)
-            
-            c.setFont("Helvetica", draw_size)
-            c.drawString(x + offset_x, y + offset_y, text)
+                c.setFont("Helvetica", size)
+                c.drawString(fallback_x, fallback_y, text)
 
-        # Header data
-        draw_smart('{{nombre}}', data.get('nombre', ''), 100, 700, 0)
-        draw_smart('{{dni}}', data.get('dni', ''), 300, 700, 0)
-        draw_smart('{{nrp}}', data.get('nrp', ''), 450, 700, 0)
+        # 1. Fill Header
+        draw_at_anchor('{{nombre}}', data.get('nombre', ''), 140, 688)
+        draw_at_anchor('{{dni}}', data.get('dni', ''), 310, 688)
+        draw_at_anchor('{{nrp}}', data.get('nrp', ''), 440, 688)
+
+        # 2. WHITE-OUT: Clean the original static table area
+        # Original table is roughly from Y=380 to Y=580
+        c.setFillColor(colors.white)
+        c.rect(70, 380, 460, 205, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+
+        # 3. DRAW DYNAMIC TABLE
+        table_top = 580
+        col_dia = 75
+        col_hora = 150
+        col_curso = 210
+        col_motivo = 300
+        row_h = 20
         
-        # Table data
-        # We start below the "DÍA HORA CURSO MOTIVOS" header
-        # Manual calculation based on visual layout of the PDF:
-        # Table starts around Y=580
-        dias = request.form.getlist('fila_dia[]')
-        horas = request.form.getlist('fila_hora[]')
-        cursos = request.form.getlist('fila_curso[]')
-        motivos = request.form.getlist('fila_motivo[]')
+        # Prepare Rows
+        rows_to_draw = []
+        if absence_mode == 'range':
+            f_ini = data.get('fecha_inicio', '')
+            f_fin = data.get('fecha_fin', '')
+            # Format dates
+            try:
+                if '-' in f_ini: f_ini = "/".join(f_ini.split('-')[::-1])
+                if '-' in f_fin: f_fin = "/".join(f_fin.split('-')[::-1])
+            except: pass
+            rows_to_draw.append({
+                'dia': f"Del {f_ini} al {f_fin}",
+                'hora': "Completo",
+                'curso': "-",
+                'motivo': data.get('motivo_general', '')
+            })
+        else:
+            dias = request.form.getlist('fila_dia[]')
+            horas = request.form.getlist('fila_hora[]')
+            cursos = request.form.getlist('fila_curso[]')
+            motivos = request.form.getlist('fila_motivo[]')
+            for i in range(len(dias)):
+                d = dias[i]
+                if '-' in d: d = "/".join(d.split('-')[::-1])
+                rows_to_draw.append({
+                    'dia': d,
+                    'hora': horas[i],
+                    'curso': cursos[i],
+                    'motivo': motivos[i]
+                })
+
+        # Draw Table Headers
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col_dia, table_top - 15, "DÍA")
+        c.drawString(col_hora, table_top - 15, "HORA")
+        c.drawString(col_curso, table_top - 15, "CURSO")
+        c.drawString(col_motivo, table_top - 15, "MOTIVOS")
         
-        start_y = 555 # Approximate starting row Y
-        row_height = 20
+        # Header Line
+        c.setLineWidth(1)
+        c.line(70, table_top - 20, 530, table_top - 20)
         
-        for i in range(len(dias)):
-            y_pos = start_y - (i * row_height)
-            if i >= 10: break # Table limit
+        # Draw Rows
+        c.setFont("Helvetica", 9)
+        curr_y = table_top - 35
+        for r in rows_to_draw:
+            c.drawString(col_dia, curr_y, r['dia'])
+            c.drawString(col_hora, curr_y, r['hora'])
+            c.drawString(col_curso, curr_y, r['curso'])
+            # Motivo can be long, truncate or multiline? 
+            # Simple truncation for now to avoid complexity in this step
+            m_text = r['motivo'][:45] + "..." if len(r['motivo']) > 48 else r['motivo']
+            c.drawString(col_motivo, curr_y, m_text)
             
-            # Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
-            fecha_fmt = dias[i]
-            if '-' in fecha_fmt:
-                y, m, d = fecha_fmt.split('-')
-                fecha_fmt = f"{d}/{m}/{y}"
-                
-            c.setFont("Helvetica", 9)
-            c.drawString(75, y_pos, fecha_fmt)      # DÍA
-            c.drawString(140, y_pos, horas[i])     # HORA
-            c.drawString(195, y_pos, cursos[i])    # CURSO
-            c.drawString(285, y_pos, motivos[i])   # MOTIVOS
+            # Row line (subtle)
+            c.setLineWidth(0.5)
+            c.setStrokeColor(colors.lightgrey)
+            c.line(70, curr_y - 5, 530, curr_y - 5)
+            c.setStrokeColor(colors.black)
+            
+            curr_y -= row_h
+            # Check for page overflow (simplified: keep it on one page for first test)
+            if curr_y < 300: break
 
         c.save()
         packet.seek(0)
         
-        # Merge template
+        # Merge
         reader = PdfReader(template_path)
         writer = PdfWriter()
         overlay = PdfReader(packet)
-        
         page = reader.pages[0]
         page.merge_page(overlay.pages[0])
         writer.add_page(page)
         
-        output_stream = io.BytesIO()
-        writer.write(output_stream)
-        output_stream.seek(0)
+        out = io.BytesIO()
+        writer.write(out)
+        out.seek(0)
         
-        pdf_base64 = base64.b64encode(output_stream.read()).decode('utf-8')
+        pdf_b64 = base64.b64encode(out.read()).decode('utf-8')
         
-        # PAdES signature area for Justificante
-        # Signature is at the bottom right box
-        extra_params = (
+        # Signature area (same as before)
+        extra = (
             f"signaturePage=1\n"
             f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {time.strftime('%d/%m/%Y %H:%M')}\n"
             f"signaturePositionOnPageLowerLeftX=320\n"
@@ -237,11 +284,7 @@ def generate_justificante():
             f"signaturePositionOnPageUpperRightY=225\n"
         )
         
-        return jsonify({
-            "status": "success",
-            "pdf_base64": pdf_base64,
-            "extra_params": extra_params
-        })
+        return jsonify({"status": "success", "pdf_base64": pdf_b64, "extra_params": extra})
     except Exception as e:
         import traceback
         traceback.print_exc()
