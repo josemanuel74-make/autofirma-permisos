@@ -146,6 +146,13 @@ def generate_justificante():
         absence_mode = data.get('absence_mode', 'specific')
         
         template_path = "justificacionfaltasprofesores.pdf"
+        if not os.path.exists(template_path):
+            # Try with capitalized name
+            template_path = "JustificacionFaltasProfesores.pdf"
+            
+        if not os.path.exists(template_path):
+             return jsonify({"status": "error", "message": f"No se encuentra la plantilla: {template_path}"}), 404
+
         anchors = get_pdf_anchors(template_path)
         
         packet = io.BytesIO()
