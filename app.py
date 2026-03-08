@@ -290,9 +290,10 @@ def generate_permiso():
             draw_smart('{{motivo}}', motivo_val, 151, 620, 1)
         
         draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1)
-        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1)
+        # Lowering the name and NRP to be closer to "Fdo.:" and the signature line
+        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 308, 1)
         # New NRP tag at the end of page 2
-        draw_smart('{{nrp}}', data.get('nrp', ''), 108, 304, 1)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 108, 295, 1)
 
         c.save()
         packet.seek(0)
@@ -349,16 +350,15 @@ def generate_permiso():
         print(f"DEBUG: PDF generated successfully for {data.get('nombre')}")
         
         # Extra parameters for visible signature (PAdES)
-        # Position is set to cover the area right below "Melilla, a fecha firma electróncio"
-        # Original text is around X=375, Y=206. "Fdo.:" is around Y=148.
+        # Moving it slightly up (Y from 150->160 and 205->215) to avoid overlapping "Fdo.:"
         fecha_corta = time.strftime('%d/%m/%Y a las %H:%M')
         extra_params = (
             f"signaturePage=1\n"
             f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {fecha_corta}\n"
             f"signaturePositionOnPageLowerLeftX=320\n"
-            f"signaturePositionOnPageLowerLeftY=150\n"
+            f"signaturePositionOnPageLowerLeftY=160\n"
             f"signaturePositionOnPageUpperRightX=550\n"
-            f"signaturePositionOnPageUpperRightY=205\n"
+            f"signaturePositionOnPageUpperRightY=215\n"
             f"signatureCertificationLevel=2\n"
         )
         
