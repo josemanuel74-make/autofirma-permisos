@@ -300,26 +300,7 @@
             }
 
             btn.disabled = true;
-
-            // Handle file upload to base64 before submitting
-            const fileInput = document.getElementById('archivo_adjunto');
-            if (fileInput.files.length > 0) {
-                showMessage("Procesando archivo adjunto...", "info");
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = async function (event) {
-                    document.getElementById('adjunto_base64').value = event.target.result.split(',')[1];
-                    document.getElementById('adjunto_nombre').value = file.name;
-                    await submitForm();
-                };
-                reader.onerror = () => {
-                    showMessage("Error leyendo el archivo", "error");
-                    btn.disabled = false;
-                }
-                reader.readAsDataURL(file);
-            } else {
-                await submitForm();
-            }
+            await submitForm();
         }
 
         async function submitForm() {

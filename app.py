@@ -8,6 +8,7 @@ from PIL import Image
 import requests
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
 # --- CONFIGURATION ---
 # Replace this with your actual Power Automate Webhook URL
