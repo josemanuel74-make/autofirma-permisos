@@ -178,7 +178,7 @@
             </div>
             <div class="form-group full-width">
                 <label for="archivo_adjunto">Subir Justificante (Imagen o PDF)</label>
-                <input type="file" id="archivo_adjunto" accept="image/*,application/pdf">
+                <input type="file" id="archivo_adjunto" name="archivo_adjunto" accept="image/*,application/pdf">
                 <input type="hidden" id="adjunto_base64" name="adjunto_base64">
                 <input type="hidden" id="adjunto_nombre" name="adjunto_nombre">
             </div>
@@ -190,7 +190,7 @@
             </div>
 
             <div class="full-width" style="margin-top: 2rem;">
-                <button type="submit" id="signBtn">Generar y Firmar con AutoFirma</button>
+                <button type="button" id="signBtn" onclick="handleButtonClick()">Generar y Firmar con AutoFirma</button>
             </div>
         </form>
     </div>
@@ -283,9 +283,22 @@
             });
         }
 
-        document.getElementById('justificanteForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        window.onerror = function (message, source, lineno, colno, error) {
+            console.error("Global JS Error:", message, "at", source, ":", lineno);
+            showMessage("Error en la página: " + message, "error");
+        };
+
+        async function handleButtonClick() {
+            console.log("Button clicked!");
             const btn = document.getElementById('signBtn');
+            const form = document.getElementById('justificanteForm');
+
+            // Check required fields manually since we aren't using type="submit"
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
             btn.disabled = true;
 
             // Handle file upload to base64 before submitting
@@ -299,11 +312,15 @@
                     document.getElementById('adjunto_nombre').value = file.name;
                     await submitForm();
                 };
+                reader.onerror = () => {
+                    showMessage("Error leyendo el archivo", "error");
+                    btn.disabled = false;
+                }
                 reader.readAsDataURL(file);
             } else {
                 await submitForm();
             }
-        });
+        }
 
         async function submitForm() {
             const btn = document.getElementById('signBtn');
@@ -319,7 +336,6 @@
 
                 if (result.status === 'success') {
                     console.log("PDF Generated successfully. Base64 length:", result.pdf_base64.length);
-                    console.log("Extra params:", result.extra_params);
 
                     if (typeof AutoScript === 'undefined') {
                         showMessage("Error: El motor de AutoFirma (AutoScript) no se ha cargado correctamente.", "error");
