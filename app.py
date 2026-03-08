@@ -294,10 +294,10 @@ def generate_permiso():
             draw_smart('{{motivo}}', motivo_val, 151, 620, 1)
         
         draw_smart('{{justificante}}', data.get('descripcion_adjunto', ''), 150, 570, 1)
-        # Lowering the name and moving it 70px to the left to be "pegado" to "Fdo.:"
-        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 308, 1, offset_x=-70)
+        # Reverting Page 2 to its original stable position
+        draw_smart('{{nombre}}', data.get('nombre', ''), 297, 317, 1)
         # New NRP tag at the end of page 2
-        draw_smart('{{nrp}}', data.get('nrp', ''), 108, 295, 1)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 108, 304, 1)
 
         c.save()
         packet.seek(0)
