@@ -9,15 +9,6 @@ import requests
 
 app = Flask(__name__)
 
-# Enforce the folder where signed documents will be saved
-SIGNED_DOCS_FOLDER = os.path.join(os.getcwd(), 'signed_docs')
-if not os.path.exists(SIGNED_DOCS_FOLDER):
-    os.makedirs(SIGNED_DOCS_FOLDER)
-
-UPLOADS_FOLDER = os.path.join(os.getcwd(), 'uploads')
-if not os.path.exists(UPLOADS_FOLDER):
-    os.makedirs(UPLOADS_FOLDER)
-
 # --- CONFIGURATION ---
 # Replace this with your actual Power Automate Webhook URL
 WEBHOOK_URL = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6500d208c0ce4a4d91f2e8d313e22aac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=LI_rqf4S28tioqVtXr2WmztpmdqY4qqnlGjTOSc92mc" 
@@ -41,43 +32,36 @@ def save_signature():
         safe_nombre = "".join([c for c in nombre_sanitizado if c.isalnum() or c in ('_', '-')]).rstrip()
         filename = f"Solicitud_Permiso_{safe_nombre}_{timestamp}_Firmado.pdf"
         
-        save_path = os.path.join(SIGNED_DOCS_FOLDER, filename)
-        
-        print(f"DEBUG: Saving signature for {filename}")
-        # Decode and save
-        with open(save_path, "wb") as fh:
-            fh.write(base64.b64decode(signature_b64))
-            
-        print(f"DEBUG: File saved successfully at {save_path}")
+        print(f"DEBUG: Processing signature for {filename}")
+        # We no longer save the file locally.
 
         # --- POWER AUTOMATE INTEGRATION ---
         webhook_status = "skipped"
         if WEBHOOK_URL:
             try:
                 print(f"DEBUG: Sending to Webhook: {WEBHOOK_URL}")
-                with open(save_path, 'rb') as pdf_file:
-                    # Send all metadata and base64 file as a JSON payload
-                    payload = {
-                        'nombre': nombre_original,
-                        'timestamp': timestamp,
-                        'filename': filename,
-                        'dni': data.get('dni', ''),
-                        'nrp': data.get('nrp', ''),
-                        'asignatura': data.get('asignatura', ''),
-                        'motivo': data.get('motivo', ''),
-                        'articulo': data.get('articulo', ''),
-                        'dias_solicitados': data.get('dias_solicitados', ''),
-                        'total_dias': data.get('total_dias', '0'),
-                        'descripcion_adjunto': data.get('descripcion_adjunto', ''),
-                        'fecha_solicitud': data.get('fecha', ''),
-                        'file_base64': signature_b64
-                    }
-                    response = requests.post(WEBHOOK_URL, json=payload)
-                    print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
-                    if response.ok:
-                        webhook_status = "success"
-                    else:
-                        webhook_status = f"failed_http_{response.status_code}"
+                # Send all metadata and base64 file as a JSON payload
+                payload = {
+                    'nombre': nombre_original,
+                    'timestamp': timestamp,
+                    'filename': filename,
+                    'dni': data.get('dni', ''),
+                    'nrp': data.get('nrp', ''),
+                    'asignatura': data.get('asignatura', ''),
+                    'motivo': data.get('motivo', ''),
+                    'articulo': data.get('articulo', ''),
+                    'dias_solicitados': data.get('dias_solicitados', ''),
+                    'total_dias': data.get('total_dias', '0'),
+                    'descripcion_adjunto': data.get('descripcion_adjunto', ''),
+                    'fecha_solicitud': data.get('fecha', ''),
+                    'file_base64': signature_b64
+                }
+                response = requests.post(WEBHOOK_URL, json=payload)
+                print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
+                if response.ok:
+                    webhook_status = "success"
+                else:
+                    webhook_status = f"failed_http_{response.status_code}"
             except Exception as e_webhook:
                 print(f"ERROR: Webhook execution failed: {str(e_webhook)}")
                 webhook_status = f"error_{str(e_webhook)}"
@@ -85,8 +69,7 @@ def save_signature():
 
         return jsonify({
             "status": "success", 
-            "message": "File saved successfully", 
-            "path": save_path,
+            "message": "Signature processed and sent", 
             "webhook_status": webhook_status
         })
     except Exception as e:
@@ -162,7 +145,7 @@ def generate_permiso():
             files = request.files
         
         # Handle justification description
-        attachment_path = None
+        attachment_data = None
         justificacion_text = data.get('descripcion_adjunto', 'No adjunto')
         
         nombre_profe = data.get('nombre', 'Anonimo').replace(' ', '_')
@@ -173,10 +156,13 @@ def generate_permiso():
         if 'justificacion_file' in files:
             file = files['justificacion_file']
             if file.filename != '':
-                ext = file.filename.split('.')[-1]
-                secure_name = f"Justificante_{safe_name}_{timestamp_str}.{ext}"
-                attachment_path = os.path.join(UPLOADS_FOLDER, secure_name)
-                file.save(attachment_path)
+                ext = file.filename.split('.')[-1].lower()
+                attachment_content = file.read()
+                attachment_data = {
+                    'ext': ext,
+                    'content': attachment_content,
+                    'filename': file.filename
+                }
         
         # Load and clone the PDF to preserve structure and forms
         # We rename the template if it's renamed, or just keep using the same file but updating references
@@ -327,11 +313,12 @@ def generate_permiso():
 
 
         # Merge the uploaded file if it exists
-        if attachment_path:
+        if attachment_data:
             try:
-                ext = attachment_path.lower().split('.')[-1]
+                ext = attachment_data['ext']
+                content = attachment_data['content']
                 if ext in ['jpg', 'jpeg', 'png']:
-                    img = Image.open(attachment_path)
+                    img = Image.open(io.BytesIO(content))
                     if img.mode != 'RGB':
                         img = img.convert('RGB')
                     img_pdf_io = io.BytesIO()
@@ -340,7 +327,7 @@ def generate_permiso():
                     attachment_reader = PdfReader(img_pdf_io)
                     writer.append(attachment_reader)
                 elif ext == 'pdf':
-                    attachment_reader = PdfReader(attachment_path)
+                    attachment_reader = PdfReader(io.BytesIO(content))
                     writer.append(attachment_reader)
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment: {str(e_merge)}")
@@ -350,28 +337,7 @@ def generate_permiso():
         writer.write(output_stream)
         output_stream.seek(0)
         
-        # CSV Registration (local for OneDrive syncing)
-        # ... (CSV part already updated in previous turn, but keeping consistency)
-        try:
-            csv_path = 'registros_permisos.csv'
-            import csv
-            file_exists = os.path.isfile(csv_path)
-            # Use 'utf-8-sig' for better Excel compatibility with accents
-            with open(csv_path, mode='a', newline='', encoding='utf-8-sig') as f:
-                header = ['timestamp', 'nombre', 'dni', 'dias', 'motivo', 'archivo_adjunto']
-                writer_csv = csv.DictWriter(f, fieldnames=header)
-                if not file_exists:
-                    writer_csv.writeheader()
-                writer_csv.writerow({
-                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'nombre': data.get('nombre'),
-                    'dni': data.get('dni'),
-                    'dias': data.get('dias_solicitados'),
-                    'motivo': data.get('motivo'),
-                    'archivo_adjunto': os.path.basename(attachment_path) if attachment_path else 'N/A'
-                })
-        except Exception as e_csv:
-            print(f"WARNING: CSV Log failed: {str(e_csv)}")
+        # CSV Registration removed (now handled by Power Automate)
         
         # Encode to Base64
         pdf_base64 = base64.b64encode(output_stream.read()).decode('utf-8')
