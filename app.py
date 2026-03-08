@@ -48,21 +48,12 @@ def save_signature():
             try:
                 print(f"DEBUG: Sending to Webhook: {WEBHOOK_URL}")
                 # Send all metadata and base64 file as a JSON payload
-                payload = {
-                    'nombre': nombre_original,
+                payload = data.copy()
+                payload.update({
                     'timestamp': timestamp,
                     'filename': filename,
-                    'dni': data.get('dni', ''),
-                    'nrp': data.get('nrp', ''),
-                    'asignatura': data.get('asignatura', ''),
-                    'motivo': data.get('motivo', ''),
-                    'articulo': data.get('articulo', ''),
-                    'dias_solicitados': data.get('dias_solicitados', ''),
-                    'total_dias': data.get('total_dias', '0'),
-                    'descripcion_adjunto': data.get('descripcion_adjunto', ''),
-                    'fecha_solicitud': data.get('fecha', ''),
                     'file_base64': signature_b64
-                }
+                })
                 response = requests.post(WEBHOOK_URL, json=payload)
                 print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
                 if response.ok:
@@ -163,97 +154,102 @@ def generate_justificante():
         from reportlab.lib.utils import simpleSplit
         c = canvas.Canvas(packet, pagesize=A4)
         
-        # Look for the new anchor <<texto>> or fallback
         anchor_key = '<<texto>>'
         matches = anchors.get(anchor_key, [])
         if matches:
             a = matches[0]
             start_x, start_y = a[1], a[2]
         else:
-            # Fallback if anchor not found
             start_x, start_y = 70, 630
 
-        # 1. DRAW HEADER TEXT DYNAMICALLY
+        # 0. HIDE THE ANCHOR MARKER
+        c.setFillColor(colors.white)
+        # Small white rectangle over the <<texto>> text in the template
+        c.rect(start_x - 2, start_y - 2, 60, 15, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+
+        # 1. DRAW HEADER TEXT (User's exact wording)
         header_text = (
             f"D/Dª {data.get('nombre', '')} con DNI {data.get('dni', '')} y NRP {data.get('nrp', '')} "
             f"le comunico a usted que no pude asistir al Centro a impartir mis clases y/o el horario "
-            f"complementario, los días que continuación se indican, por los siguientes motivos que igualmente expreso:"
+            f"complementario, los dı́as que continuació n se indican, por los siguientes motivos que igualmente expreso:"
         )
         
         c.setFont("Helvetica", 11)
+        # Use simpleSplit for wrapping
         lines = simpleSplit(header_text, "Helvetica", 11, 460)
-        curr_y = start_y
+        line_y = start_y
         for line in lines:
-            c.drawString(start_x, curr_y, line)
-            curr_y -= 15
+            c.drawString(start_x, line_y, line)
+            line_y -= 15
 
-        # 2. DRAW DYNAMIC TABLE (below text)
-        table_top = curr_y - 20
-        col_dia = 75
-        col_hora = 150
-        col_curso = 210
-        col_motivo = 300
-        row_h = 20
+        # 2. DRAW AUTHENTIC TABLE
+        table_top = line_y - 25
+        col_x = [70, 145, 205, 275, 530] # Column boundaries [Start, Horas, Curso, Motivo, End]
         
-        # Prepare Rows
+        # Draw table headers
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col_x[0] + 5, table_top - 15, "DÍA")
+        c.drawString(col_x[1] + 5, table_top - 15, "HORA")
+        c.drawString(col_x[2] + 5, table_top - 15, "CURSO")
+        c.drawString(col_x[3] + 5, table_top - 15, "MOTIVOS")
+        
+        # Header Grid Lines
+        c.setLineWidth(1.2)
+        c.line(col_x[0], table_top, col_x[4], table_top) # Top line
+        c.line(col_x[0], table_top - 20, col_x[4], table_top - 20) # Under header line
+        
+        # Prepare Data Rows
         rows_to_draw = []
         if absence_mode == 'range':
-            f_ini = data.get('fecha_inicio', '')
-            f_fin = data.get('fecha_fin', '')
+            f_ini, f_fin = data.get('fecha_inicio', ''), data.get('fecha_fin', '')
             try:
                 if '-' in f_ini: f_ini = "/".join(f_ini.split('-')[::-1])
                 if '-' in f_fin: f_fin = "/".join(f_fin.split('-')[::-1])
             except: pass
-            rows_to_draw.append({
-                'dia': f"Del {f_ini} al {f_fin}",
-                'hora': "Completo",
-                'curso': "-",
-                'motivo': data.get('motivo_general', '')
-            })
+            rows_to_draw.append({'dia': f"Del {f_ini} al {f_fin}", 'hora': "Completo", 'curso': "-", 'motivo': data.get('motivo_general', '')})
         else:
-            dias = request.form.getlist('fila_dia[]')
-            horas = request.form.getlist('fila_hora[]')
-            cursos = request.form.getlist('fila_curso[]')
-            motivos = request.form.getlist('fila_motivo[]')
+            dias, horas, cursos, motivos = request.form.getlist('fila_dia[]'), request.form.getlist('fila_hora[]'), request.form.getlist('fila_curso[]'), request.form.getlist('fila_motivo[]')
             for i in range(len(dias)):
                 d = dias[i]
                 if '-' in d: d = "/".join(d.split('-')[::-1])
-                rows_to_draw.append({
-                    'dia': d, 'hora': horas[i], 'curso': cursos[i], 'motivo': motivos[i]
-                })
+                rows_to_draw.append({'dia': d, 'hora': horas[i], 'curso': cursos[i], 'motivo': motivos[i]})
 
-        # Headers
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(col_dia, table_top - 15, "DÍA")
-        c.drawString(col_hora, table_top - 15, "HORA")
-        c.drawString(col_curso, table_top - 15, "CURSO")
-        c.drawString(col_motivo, table_top - 15, "MOTIVOS")
-        
-        c.setLineWidth(1)
-        c.line(70, table_top - 20, 530, table_top - 20)
-        
-        # Rows
+        # Draw Data Rows and Grid
+        row_y = table_top - 20
         c.setFont("Helvetica", 9)
-        row_y = table_top - 35
+        c.setLineWidth(0.5)
+        
         for r in rows_to_draw:
-            if row_y < 150: # Simple break if too low
-                break
-            c.drawString(col_dia, row_y, r['dia'])
-            c.drawString(col_hora, row_y, r['hora'])
-            c.drawString(col_curso, row_y, r['curso'])
-            m_text = r['motivo'][:45] + "..." if len(r['motivo']) > 48 else r['motivo']
-            c.drawString(col_motivo, row_y, m_text)
+            if row_y < 180: break # Avoid overlapping signature
             
-            c.setLineWidth(0.5)
-            c.setStrokeColor(colors.lightgrey)
-            c.line(70, row_y - 5, 530, row_y - 5)
-            c.setStrokeColor(colors.black)
-            row_y -= row_h
+            c.drawString(col_x[0] + 5, row_y - 14, r['dia'])
+            c.drawString(col_x[1] + 5, row_y - 14, r['hora'])
+            c.drawString(col_x[2] + 5, row_y - 14, r['curso'])
+            m_text = r['motivo'][:45] + "..." if len(r['motivo']) > 48 else r['motivo']
+            c.drawString(col_x[3] + 5, row_y - 14, m_text)
+            
+            row_y -= 20
+            c.line(col_x[0], row_y, col_x[4], row_y) # Bottom line of the row
+        
+        # Vertical Lines for the grid
+        grid_bottom = row_y
+        for x in col_x:
+            c.line(x, table_top, x, grid_bottom)
 
-        # "Participo a usted..." Text
-        row_y -= 20
+        # 3. FOOTER TEXT
+        row_y -= 25
         c.setFont("Helvetica", 11)
         c.drawString(start_x, row_y, "Lo que participo a usted a los efectos oportunos.")
+
+        # ATTACHMENT INFO (Optional)
+        adjunto_desc = data.get('descripcion_adjunto', '')
+        adjunto_name = data.get('adjunto_nombre', '')
+        if adjunto_desc or adjunto_name:
+            row_y -= 25
+            c.setFont("Helvetica-BoldOblique", 9)
+            text_adj = f"Doc. Adjunta: {adjunto_desc}" if adjunto_desc else f"Archivo Adjunto: {adjunto_name}"
+            c.drawString(start_x, row_y, text_adj)
 
         c.save()
         packet.seek(0)
@@ -279,6 +275,10 @@ def generate_justificante():
             f"signaturePositionOnPageUpperRightY=225\n"
         )
         return jsonify({"status": "success", "pdf_base64": pdf_b64, "extra_params": extra})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         import traceback
         traceback.print_exc()

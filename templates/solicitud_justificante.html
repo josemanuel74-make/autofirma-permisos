@@ -170,6 +170,19 @@
                 </div>
             </div>
 
+            <div class="section-title">Documentación Adjunta</div>
+            <div class="form-group full-width">
+                <label for="descripcion_adjunto">Descripción del justificante adjunto (opcional)</label>
+                <input type="text" id="descripcion_adjunto" name="descripcion_adjunto"
+                    placeholder="Ej: Informe médico, citación judicial, etc.">
+            </div>
+            <div class="form-group full-width">
+                <label for="archivo_adjunto">Subir Justificante (Imagen o PDF)</label>
+                <input type="file" id="archivo_adjunto" accept="image/*,application/pdf">
+                <input type="hidden" id="adjunto_base64" name="adjunto_base64">
+                <input type="hidden" id="adjunto_nombre" name="adjunto_nombre">
+            </div>
+
             <div class="section-title">Firma y Fecha de Solicitud</div>
             <div class="form-group">
                 <label>Fecha del Documento</label>
@@ -234,13 +247,20 @@
             showMessage("Firma completada. Enviando...", "success");
             const formData = new FormData(document.getElementById('justificanteForm'));
             const payload = Object.fromEntries(formData.entries());
-            // Add arrays manually
+
             payload.fila_dia = formData.getAll('fila_dia[]');
             payload.fila_hora = formData.getAll('fila_hora[]');
             payload.fila_curso = formData.getAll('fila_curso[]');
             payload.fila_motivo = formData.getAll('fila_motivo[]');
             payload.signature = signatureB64;
             payload.type = 'justificante';
+
+            // Clean up empty fields from mode switch
+            if (currentMode === 'range') {
+                payload.fila_dia = []; payload.fila_hora = []; payload.fila_curso = []; payload.fila_motivo = [];
+            } else {
+                payload.fecha_inicio = ''; payload.fecha_fin = ''; payload.motivo_general = '';
+            }
 
             fetch('/save', {
                 method: 'POST',
@@ -267,9 +287,30 @@
             e.preventDefault();
             const btn = document.getElementById('signBtn');
             btn.disabled = true;
+
+            // Handle file upload to base64 before submitting
+            const fileInput = document.getElementById('archivo_adjunto');
+            if (fileInput.files.length > 0) {
+                showMessage("Procesando archivo adjunto...", "info");
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = async function (event) {
+                    document.getElementById('adjunto_base64').value = event.target.result.split(',')[1];
+                    document.getElementById('adjunto_nombre').value = file.name;
+                    await submitForm();
+                };
+                reader.readAsDataURL(file);
+            } else {
+                await submitForm();
+            }
+        });
+
+        async function submitForm() {
+            const btn = document.getElementById('signBtn');
+            const form = document.getElementById('justificanteForm');
             showMessage("Generando PDF dinámico...", "info");
 
-            const formData = new FormData(e.target);
+            const formData = new FormData(form);
             try {
                 const res = await fetch('/generate_justificante', { method: 'POST', body: formData });
                 const result = await res.json();
@@ -284,7 +325,7 @@
                 showMessage("Error de red: " + err, "error");
                 btn.disabled = false;
             }
-        });
+        }
     </script>
 </body>
 
