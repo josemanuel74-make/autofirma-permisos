@@ -117,9 +117,8 @@ def get_pdf_anchors(template_path):
                         elif "bold" in fname: font_name = "Helvetica-Bold"
                     
                     # Exact shift using reportlab's metrics
-                    # Added a small +2px fudge factor as reportlab's width is often 
-                    # slightly tighter than the actual PDF rendering gap.
-                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size) + 2
+                    # Removed +2px fudge factor as it was pushing text too far right.
+                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size)
                     
                     key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
                     if key not in anchors:
@@ -129,10 +128,10 @@ def get_pdf_anchors(template_path):
                     if base_x > 0.001 or base_y > 0.001:
                         final_x = base_x + shift_x
                         # DE-DUPLICATE: avoid adding the same anchor multiple times 
-                        # (happens if text is drawn twice for effects or shadow)
+                        # using a tighter threshold.
                         is_dup = False
                         for existing in anchors[key]:
-                            if existing[0] == i and abs(existing[1] - final_x) < 2 and abs(existing[2] - base_y) < 2:
+                            if existing[0] == i and abs(existing[1] - final_x) < 0.5 and abs(existing[2] - base_y) < 0.5:
                                 is_dup = True
                                 break
                         if not is_dup:
