@@ -15,9 +15,16 @@ WEBHOOK_URL = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.
 # ---------------------
 
 @app.route('/')
-@app.route('/permiso')
-def permiso_form_root():
+def home():
+    return render_template('index.html')
+
+@app.route('/permisos')
+def permisos_form():
     return render_template('solicitud_permiso.html')
+
+@app.route('/justificante')
+def justificante_form():
+    return render_template('solicitud_justificante.html')
 
 @app.route('/save', methods=['POST'])
 def save_signature():
@@ -76,15 +83,9 @@ def save_signature():
         print(f"ERROR in /save: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/permiso')
-def permiso_form():
-    return render_template('solicitud_permiso.html')
+# Removed redundant /permiso route
 
 def get_pdf_anchors(template_path):
-    """
-    Scans a PDF for labels like {{label}} and returns their coordinates.
-    High precision: uses reportlab's stringWidth for exact shifting.
-    """
     import re
     from reportlab.pdfbase import pdfmetrics
     anchors = {}
@@ -95,21 +96,19 @@ def get_pdf_anchors(template_path):
         reader = PdfReader(template_path)
         for i, page in enumerate(reader.pages):
             def visitor(text, cm, tm, font_dict, font_size):
-                # We normalize the search to be more lenient
-                # Matches {{label}}, {{label}, or just {{label (in case of extraction artifacts)
                 matches = list(re.finditer(r'\{\{([a-zA-Z0-9_]+)', text))
                 if not matches:
                     return
 
-                # Calculate base coordinates
-                base_x = tm[4]
-                base_y = tm[5]
+                # CM: [a, b, c, d, e, f]
+                # Transformation to global coordinates
+                ca, cb, cc, cd, ce, cf = cm
+                base_x, base_y = tm[4], tm[5]
                 
                 for m in matches:
                     tag_name = m.group(1)
                     preceding_text = text[:m.start()]
                     
-                    # Detect font type for more accurate width calculation
                     font_name = "Helvetica"
                     if font_dict and "/BaseFont" in font_dict:
                         fname = font_dict["/BaseFont"].lower()
@@ -117,34 +116,136 @@ def get_pdf_anchors(template_path):
                         elif "bold" in fname: font_name = "Helvetica-Bold"
                     
                     # Exact shift using reportlab's metrics
-                    # THE REASON FOR MISALIGNMENT:
-                    # Reportlab's Times-Roman width is often tighter than how 
-                    # specialized PDF printers render 'con NRP  '.
-                    # Adding a +6px fudge factor to ensure it starts AFTER the label.
-                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size) + 6
+                    shift_x = pdfmetrics.stringWidth(preceding_text, font_name, font_size)
                     
-                    key = f"{{{{{tag_name}}}}}" # Canonical form {{name}}
+                    # Apply CM to calculated local (shift_x, base_y)
+                    # Note: We use shift_x relative to tm's base_x
+                    local_x = base_x + shift_x
+                    local_y = base_y
+                    
+                    final_x = local_x * ca + local_y * cc + ce
+                    final_y = local_x * cb + local_y * cd + cf
+                    
+                    key = f"{{{{{tag_name}}}}}"
                     if key not in anchors:
                         anchors[key] = []
                     
-                    # Reject (0,0) as it's usually a coordinate system error in visitor
-                    if base_x > 0.001 or base_y > 0.001:
-                        final_x = base_x + shift_x
-                        # DE-DUPLICATE: avoid adding the same anchor multiple times 
-                        # using a tighter threshold.
+                    # Deduplication & basic filter
+                    if abs(final_x) > 0.001 or abs(final_y) > 0.001:
                         is_dup = False
                         for existing in anchors[key]:
-                            if existing[0] == i and abs(existing[1] - final_x) < 0.5 and abs(existing[2] - base_y) < 0.5:
+                            if existing[0] == i and abs(existing[1] - final_x) < 0.5 and abs(existing[2] - final_y) < 0.5:
                                 is_dup = True
                                 break
                         if not is_dup:
-                            anchors[key].append((i, final_x, base_y, font_size))
+                            anchors[key].append((i, final_x, final_y, font_size))
             
             page.extract_text(visitor_text=visitor)
+        return anchors
     except Exception as e:
         print(f"ERROR extracting anchors: {str(e)}")
-    
-    return anchors
+        return {}
+
+@app.route('/generate_justificante', methods=['POST'])
+def generate_justificante():
+    try:
+        data = request.form
+        nombre_profe = data.get('nombre', 'Anonimo')
+        safe_name = "".join([c for c in nombre_profe if c.isalnum() or c == ' ']).replace(' ', '_')
+        timestamp_str = time.strftime('%Y%m%d_%H%M%S')
+        
+        template_path = "justificacionfaltasprofesores.pdf"
+        anchors = get_pdf_anchors(template_path)
+        
+        packet = io.BytesIO()
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        c = canvas.Canvas(packet, pagesize=A4)
+        
+        def draw_smart(label, text, fallback_x, fallback_y, page_idx, size=None, offset_x=0, offset_y=0):
+            matches = anchors.get(label, [])
+            page_matches = [m for m in matches if m[0] == page_idx]
+            if page_matches:
+                # Use first match
+                anchor = page_matches[0]
+                x, y, draw_size = anchor[1], anchor[2], (size or anchor[3])
+            else:
+                x, y, draw_size = fallback_x, fallback_y, (size or 10)
+            
+            c.setFont("Helvetica", draw_size)
+            c.drawString(x + offset_x, y + offset_y, text)
+
+        # Header data
+        draw_smart('{{nombre}}', data.get('nombre', ''), 100, 700, 0)
+        draw_smart('{{dni}}', data.get('dni', ''), 300, 700, 0)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 450, 700, 0)
+        
+        # Table data
+        # We start below the "DÍA HORA CURSO MOTIVOS" header
+        # Manual calculation based on visual layout of the PDF:
+        # Table starts around Y=580
+        dias = request.form.getlist('fila_dia[]')
+        horas = request.form.getlist('fila_hora[]')
+        cursos = request.form.getlist('fila_curso[]')
+        motivos = request.form.getlist('fila_motivo[]')
+        
+        start_y = 555 # Approximate starting row Y
+        row_height = 20
+        
+        for i in range(len(dias)):
+            y_pos = start_y - (i * row_height)
+            if i >= 10: break # Table limit
+            
+            # Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
+            fecha_fmt = dias[i]
+            if '-' in fecha_fmt:
+                y, m, d = fecha_fmt.split('-')
+                fecha_fmt = f"{d}/{m}/{y}"
+                
+            c.setFont("Helvetica", 9)
+            c.drawString(75, y_pos, fecha_fmt)      # DÍA
+            c.drawString(140, y_pos, horas[i])     # HORA
+            c.drawString(195, y_pos, cursos[i])    # CURSO
+            c.drawString(285, y_pos, motivos[i])   # MOTIVOS
+
+        c.save()
+        packet.seek(0)
+        
+        # Merge template
+        reader = PdfReader(template_path)
+        writer = PdfWriter()
+        overlay = PdfReader(packet)
+        
+        page = reader.pages[0]
+        page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+        
+        output_stream = io.BytesIO()
+        writer.write(output_stream)
+        output_stream.seek(0)
+        
+        pdf_base64 = base64.b64encode(output_stream.read()).decode('utf-8')
+        
+        # PAdES signature area for Justificante
+        # Signature is at the bottom right box
+        extra_params = (
+            f"signaturePage=1\n"
+            f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {time.strftime('%d/%m/%Y %H:%M')}\n"
+            f"signaturePositionOnPageLowerLeftX=320\n"
+            f"signaturePositionOnPageLowerLeftY=170\n"
+            f"signaturePositionOnPageUpperRightX=550\n"
+            f"signaturePositionOnPageUpperRightY=225\n"
+        )
+        
+        return jsonify({
+            "status": "success",
+            "pdf_base64": pdf_base64,
+            "extra_params": extra_params
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/generate_permiso', methods=['POST'])
 def generate_permiso():

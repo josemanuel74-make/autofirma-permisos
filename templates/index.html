@@ -1,186 +1,100 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firmar PDF con AutoFirma</title>
-    <!-- Importar AutoScript desde su nueva ubicación -->
-    <script type="text/javascript" src="{{ url_for('static', filename='js/autoscript.js') }}"></script>
+    <title>Portal de Firmas - IES Leopoldo Queipo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
         }
-        .container {
-            background-color: #fff;
+
+        @media (max-width: 600px) {
+            .menu-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .menu-card {
+            background: white;
             padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
             text-align: center;
-            width: 100%;
-            max-width: 500px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 2px solid transparent;
         }
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 1.5rem;
-        }
-        .upload-area {
-            border: 2px dashed #bdc3c7;
-            padding: 2rem;
-            border-radius: 6px;
-            margin-bottom: 1.5rem;
-            cursor: pointer;
-            transition: border-color 0.3s;
-        }
-        .upload-area:hover {
+
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
             border-color: #3498db;
         }
-        input[type="file"] {
-            display: none;
+
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
         }
-        .btn {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .btn:hover {
-            background-color: #2980b9;
-        }
-        .btn:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 1rem;
+
+        .card-title {
+            font-size: 1.4rem;
             font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
         }
-        .success { color: #27ae60; }
-        .error { color: #c0392b; }
+
+        .card-desc {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
     </style>
 </head>
+
 <body>
+    <div class="container" style="max-width: 900px;">
+        <div class="header-branding">
+            <img src="{{ url_for('static', filename='img/logo.gif') }}" alt="Logo IES Leopoldo Queipo" class="logo">
+            <div class="header-text">
+                <span class="institute-name">IES LEOPOLDO QUEIPO</span>
+                <span class="document-title">Portal de Gestión de Firmas</span>
+            </div>
+        </div>
 
-<div class="container">
-    <h1>Firmar Documento PDF</h1>
-    
-    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-        <p>Haz clic para seleccionar un PDF</p>
-        <input type="file" id="fileInput" accept="application/pdf" onchange="handleFileSelect(this)">
-        <p id="fileName" style="font-size: 0.9em; color: #7f8c8d;"></p>
+        <h1 style="text-align: center; margin-top: 3rem; color: #34495e;">Seleccione el trámite a realizar</h1>
+
+        <div class="menu-grid">
+            <a href="/permisos" class="menu-card">
+                <div class="icon">📄</div>
+                <div class="card-title">Solicitud de Permiso</div>
+                <div class="card-desc">Anexo II - Solicitud de permisos y licencias del profesorado.</div>
+            </a>
+
+            <a href="/justificante" class="menu-card" style="border-top-color: #27ae60;">
+                <div class="icon">✅</div>
+                <div class="card-title">Justificación de Faltas</div>
+                <div class="card-desc">Impreso de justificación de faltas de asistencia del profesorado.</div>
+            </a>
+        </div>
+
+        <div
+            style="margin-top: 4rem; text-align: center; padding: 2rem; background: #fdfdfd; border-radius: 8px; border: 1px solid #eee;">
+            <h3>Instrucciones</h3>
+            <p style="color: #666; max-width: 600px; margin: 0.5rem auto;">
+                Este portal permite generar y firmar digitalmente los documentos requeridos por el centro.
+                Asegúrese de tener instalado el software <b>AutoFirma</b> en su equipo antes de comenzar.
+            </p>
+        </div>
     </div>
-
-    <button id="signBtn" class="btn" onclick="signPdf()" disabled>Firmar con AutoFirma</button>
-
-    <div id="status"></div>
-</div>
-
-<script>
-    let currentFileBase64 = null;
-    let currentFileName = null;
-
-    // Inicializar AutoScript
-    // Ajustar si es necesario. AutoScript.cargarAppAfirma() suele ser necesario.
-    try {
-        if (typeof AutoScript !== 'undefined') {
-            AutoScript.cargarAppAfirma();
-            // Configurar servlets locales forzados si es necesario, 
-            // pero para AutoFirma 'local' puro a veces no hace falta si no usamos almacenamiento trifásico.
-            // Dejamos la configuración por defecto de AutoScript que intenta conectar con localhost.
-        }
-    } catch (e) {
-        console.error("Error inicializando AutoScript:", e);
-    }
-
-    function handleFileSelect(input) {
-        const file = input.files[0];
-        if (!file) return;
-
-        currentFileName = file.name;
-        document.getElementById('fileName').innerText = file.name;
-        document.getElementById('status').innerText = "";
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            // e.target.result es "data:application/pdf;base64,....."
-            // AutoFirma suele necesitar SOLO la parte base64 sin la cabecera data URI
-            const base64Content = e.target.result.split(',')[1];
-            currentFileBase64 = base64Content;
-            document.getElementById('signBtn').disabled = false;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function signPdf() {
-        if (!currentFileBase64) {
-            alert("Por favor selecciona un archivo primero.");
-            return;
-        }
-
-        document.getElementById('status').innerText = "Iniciando AutoFirma...";
-        document.getElementById('status').className = "";
-
-        try {
-            // Parámetros: dataB64, algorithm, format, params, successCallback, errorCallback
-            // Para PDF usamos formato PAdES.
-            AutoScript.sign(
-                currentFileBase64,
-                "SHA256withRSA",
-                "PAdES",
-                null, // params adicionales
-                onSignSuccess,
-                onSignError
-            );
-        } catch (e) {
-            onSignError("Excepción invocando firma", e.message);
-        }
-    }
-
-    function onSignSuccess(signatureB64) {
-        document.getElementById('status').innerText = "Firma completada. Guardando...";
-        
-        // Enviar al servidor
-        fetch('/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                signature: signatureB64,
-                filename: currentFileName
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                document.getElementById('status').innerText = "Documento firmado y guardado correctamente.";
-                document.getElementById('status').className = "success";
-            } else {
-                throw new Error(data.message);
-            }
-        })
-        .catch(error => {
-            document.getElementById('status').innerText = "Error guardando en servidor: " + error.message;
-            document.getElementById('status').className = "error";
-        });
-    }
-
-    function onSignError(errorType, errorMessage) {
-        console.error("Error AutoFirma:", errorType, errorMessage);
-        document.getElementById('status').innerText = "Error en la firma: " + errorMessage;
-        document.getElementById('status').className = "error";
-    }
-</script>
-
 </body>
+
 </html>

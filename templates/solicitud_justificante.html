@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Justificación de Faltas</title>
+    <!-- Flatpickr for better date selection -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+
+    <script type="text/javascript" src="{{ url_for('static', filename='js/autoscript.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof AutoScript !== 'undefined') {
+                AutoScript.cargarAppAfirma();
+                AutoScript.setServlets(window.location.origin + "/storage", window.location.origin + "/retriever");
+            }
+
+            // Auto-set current date
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('fecha_solicitud').value = `${year}-${month}-${day}`;
+
+            // Add first row automatically
+            addRow();
+        });
+
+        function addRow() {
+            const tbody = document.getElementById('justificationBody');
+            const rowCount = tbody.rows.length;
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td><input type="date" name="fila_dia[]" required></td>
+                <td><input type="text" name="fila_hora[]" placeholder="Ej: 1ª Hora"></td>
+                <td><input type="text" name="fila_curso[]" placeholder="Ej: 2º ESO A"></td>
+                <td><input type="text" name="fila_motivo[]" required placeholder="Motivo"></td>
+                <td><button type="button" class="remove-btn" onclick="removeRow(this)">×</button></td>
+            `;
+        }
+
+        function removeRow(btn) {
+            const row = btn.parentNode.parentNode;
+            if (document.getElementById('justificationBody').rows.length > 1) {
+                row.parentNode.removeChild(row);
+            } else {
+                alert("Debe haber al menos una fila.");
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .table-container {
+            margin-top: 1rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .add-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .remove-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header-branding">
+            <img src="{{ url_for('static', filename='img/logo.gif') }}" alt="Logo IES Leopoldo Queipo" class="logo">
+            <div class="header-text">
+                <span class="institute-name">IES LEOPOLDO QUEIPO</span>
+                <span class="document-title">Justificación de Faltas</span>
+            </div>
+        </div>
+        <div id="status" class="status-message info" style="display:none"></div>
+
+        <form id="justificanteForm" class="form-grid">
+
+            <div class="section-title">Datos Personales</div>
+
+            <div class="form-group full-width">
+                <label for="nombre">Nombre y Apellidos *</label>
+                <input type="text" id="nombre" name="nombre" required placeholder="Nombre completo">
+            </div>
+
+            <div class="form-group">
+                <label for="dni">DNI *</label>
+                <input type="text" id="dni" name="dni" required placeholder="Ej: 12345678Z">
+            </div>
+
+            <div class="form-group">
+                <label for="nrp">NRP *</label>
+                <input type="text" id="nrp" name="nrp" required placeholder="Número Registro Personal">
+            </div>
+
+            <div class="section-title">Detalle de las Faltas</div>
+
+            <div class="table-container full-width">
+                <table id="justificationTable">
+                    <thead>
+                        <tr>
+                            <th>Día</th>
+                            <th>Hora</th>
+                            <th>Curso</th>
+                            <th>Motivos</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="justificationBody">
+                        <!-- Dynamic rows here -->
+                    </tbody>
+                </table>
+                <button type="button" class="add-btn" onclick="addRow()">+ Añadir Fila</button>
+            </div>
+
+            <div class="section-title">Firma y Fecha</div>
+
+            <div class="form-group">
+                <label for="fecha_solicitud">Fecha de Formulario</label>
+                <input type="date" id="fecha_solicitud" name="fecha_solicitud" required readonly class="readonly-field">
+            </div>
+
+            <div class="full-width">
+                <button type="submit" id="signBtn">Generar y Firmar Justificante</button>
+            </div>
+
+            <a href="/" style="display: block; text-align: center; margin-top: 1rem; color: #7f8c8d;">Volver al
+                Inicio</a>
+        </form>
+    </div>
+
+    <script>
+        function showMessage(msg, type) {
+            const el = document.getElementById('status');
+            el.innerHTML = msg;
+            el.className = 'status-message ' + type;
+            el.style.display = 'block';
+        }
+
+        function showErrorCallback(type, message) {
+            showMessage("Error en firma: " + type + " - " + message, "error");
+            document.getElementById('signBtn').disabled = false;
+        }
+
+        function showSignResultCallback(signatureB64, certificateB64) {
+            if (!signatureB64) {
+                alert("AutoFirma devolvió una firma vacía.");
+                return;
+            }
+
+            showMessage("Firma realizada con éxito. Enviando...", "success");
+
+            // Extract table data manually for JSON if needed, but we'll use FormData
+            const form = document.getElementById('justificanteForm');
+            const formData = new FormData(form);
+            formData.append('signature', signatureB64);
+            formData.append('type', 'justificante');
+
+            fetch('/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showMessage("¡Documento firmado y enviado con éxito!", "success");
+                        // Show download button
+                        const btn = document.createElement('button');
+                        btn.textContent = 'Descargar PDF Firmado';
+                        btn.onclick = () => {
+                            const link = document.createElement('a');
+                            link.href = "data:application/pdf;base64," + signatureB64;
+                            link.download = "Justificante_Faltas_Firmado.pdf";
+                            link.click();
+                        };
+                        document.getElementById('status').appendChild(document.createElement('br'));
+                        document.getElementById('status').appendChild(btn);
+                    } else {
+                        showMessage("Error: " + data.message, "error");
+                    }
+                })
+                .catch(err => {
+                    showMessage("Error de red: " + err, "error");
+                })
+                .finally(() => {
+                    document.getElementById('signBtn').disabled = false;
+                });
+        }
+
+        document.getElementById('justificanteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('signBtn');
+            btn.disabled = true;
+            showMessage("Generando PDF... por favor espere", "info");
+
+            const formData = new FormData(e.target);
+
+            try {
+                const response = await fetch('/generate_justificante', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    if (typeof AutoScript !== 'undefined') {
+                        AutoScript.sign(
+                            result.pdf_base64,
+                            "SHA256withRSA",
+                            "PAdES",
+                            result.extra_params || null,
+                            showSignResultCallback,
+                            showErrorCallback
+                        );
+                    } else {
+                        showMessage("Error: AutoScript no cargado.", "error");
+                        btn.disabled = false;
+                    }
+                } else {
+                    showMessage("Error: " + result.message, "error");
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                showMessage("Error: " + error.message, "error");
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>
