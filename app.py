@@ -193,11 +193,11 @@ def generate_justificante():
         c.rect(start_x - 2, start_y - 2, 60, 15, fill=1, stroke=0)
         c.setFillColor(colors.black)
 
-        # 1. DRAW HEADER TEXT (User's exact wording)
+        # 1. DRAW HEADER TEXT (Fixing accents encoding)
         header_text = (
             f"D/Dª {data.get('nombre', '')} con DNI {data.get('dni', '')} y NRP {data.get('nrp', '')} "
             f"le comunico a usted que no pude asistir al Centro a impartir mis clases y/o el horario "
-            f"complementario, los dı́as que continuació n se indican, por los siguientes motivos que igualmente expreso:"
+            f"complementario, los días que a continuación se indican, por los siguientes motivos que igualmente expreso:"
         )
         
         c.setFont("Helvetica", 11)
@@ -212,6 +212,11 @@ def generate_justificante():
         table_top = line_y - 25
         col_x = [70, 145, 205, 275, 530] # Column boundaries [Start, Horas, Curso, Motivo, End]
         
+        # Draw table header background (Grey)
+        c.setFillColor(colors.lightgrey)
+        c.rect(col_x[0], table_top - 20, col_x[4] - col_x[0], 20, fill=1, stroke=0)
+        c.setFillColor(colors.black)
+
         # Draw table headers
         c.setFont("Helvetica-Bold", 10)
         c.drawString(col_x[0] + 5, table_top - 15, "DÍA")
@@ -258,23 +263,18 @@ def generate_justificante():
             c.line(col_x[0], row_y, col_x[4], row_y) # Bottom line of the row
         
         # Vertical Lines for the grid
-        grid_bottom = row_y
-        for x in col_x:
-            c.line(x, table_top, x, grid_bottom)
+        c.setLineWidth(1.2)
+        c.line(col_x[0], table_top, col_x[0], row_y) # Left outer
+        c.line(col_x[4], table_top, col_x[4], row_y) # Right outer
+        
+        c.setLineWidth(0.5)
+        for x in col_x[1:4]: # Inner vertical lines
+            c.line(x, table_top, x, row_y)
 
         # 3. FOOTER TEXT
         row_y -= 25
         c.setFont("Helvetica", 11)
         c.drawString(start_x, row_y, "Lo que participo a usted a los efectos oportunos.")
-
-        # ATTACHMENT INFO (Optional)
-        adjunto_desc = data.get('descripcion_adjunto', '')
-        adjunto_name = data.get('adjunto_nombre', '')
-        if adjunto_desc or adjunto_name:
-            row_y -= 25
-            c.setFont("Helvetica-BoldOblique", 9)
-            text_adj = f"Doc. Adjunta: {adjunto_desc}" if adjunto_desc else f"Archivo Adjunto: {adjunto_name}"
-            c.drawString(start_x, row_y, text_adj)
 
         # Prepare Overlay
         c.save()
