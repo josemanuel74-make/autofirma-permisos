@@ -237,7 +237,9 @@ def generate_justificante():
                 if '-' in f_ini: f_ini = "/".join(f_ini.split('-')[::-1])
                 if '-' in f_fin: f_fin = "/".join(f_fin.split('-')[::-1])
             except: pass
-            rows_to_draw.append({'dia': f"Del {f_ini} al {f_fin}", 'hora': "Completo", 'curso': "-", 'motivo': data.get('motivo_general', '')})
+            motivo = data.get('motivo_general', '')
+            rows_to_draw.append({'dia': f"Desde {f_ini}", 'hora': "Todas", 'curso': "Todos", 'motivo': motivo})
+            rows_to_draw.append({'dia': f"Hasta {f_fin}", 'hora': "Todas", 'curso': "Todos", 'motivo': motivo})
         else:
             dias, horas, cursos, motivos = request.form.getlist('fila_dia[]'), request.form.getlist('fila_hora[]'), request.form.getlist('fila_curso[]'), request.form.getlist('fila_motivo[]')
             for i in range(len(dias)):
