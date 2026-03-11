@@ -193,32 +193,32 @@ def generate_justificante():
         c.rect(start_x - 2, start_y - 2, 60, 15, fill=1, stroke=0)
         c.setFillColor(colors.black)
 
-        # 1. DRAW HEADER TEXT (Fixing accents encoding)
+        # 1. DRAW HEADER TEXT (Using Times-Roman 10pt)
         header_text = (
             f"D/Dª {data.get('nombre', '')} con DNI {data.get('dni', '')} y NRP {data.get('nrp', '')} "
             f"le comunico a usted que no pude asistir al Centro a impartir mis clases y/o el horario "
             f"complementario, los días que a continuación se indican, por los siguientes motivos que igualmente expreso:"
         )
         
-        c.setFont("Helvetica", 11)
+        c.setFont("Times-Roman", 10)
         # Use simpleSplit for wrapping
-        lines = simpleSplit(header_text, "Helvetica", 11, 460)
+        lines = simpleSplit(header_text, "Times-Roman", 10, 460)
         line_y = start_y
         for line in lines:
             c.drawString(start_x, line_y, line)
-            line_y -= 15
+            line_y -= 14 # Slightly tighter leading for Times
 
         # 2. DRAW AUTHENTIC TABLE
         table_top = line_y - 25
-        col_x = [70, 145, 205, 275, 530] # Column boundaries [Start, Horas, Curso, Motivo, End]
+        col_x = [70, 145, 205, 275, 530] # Column boundaries
         
-        # Draw table header background (Grey)
-        c.setFillColor(colors.lightgrey)
+        # Draw table header background (Lighter Grey)
+        c.setFillColorRGB(0.95, 0.95, 0.95)
         c.rect(col_x[0], table_top - 20, col_x[4] - col_x[0], 20, fill=1, stroke=0)
         c.setFillColor(colors.black)
 
         # Draw table headers
-        c.setFont("Helvetica-Bold", 10)
+        c.setFont("Times-Bold", 10)
         c.drawString(col_x[0] + 5, table_top - 15, "DÍA")
         c.drawString(col_x[1] + 5, table_top - 15, "HORA")
         c.drawString(col_x[2] + 5, table_top - 15, "CURSO")
@@ -247,7 +247,7 @@ def generate_justificante():
 
         # Draw Data Rows and Grid
         row_y = table_top - 20
-        c.setFont("Helvetica", 9)
+        c.setFont("Times-Roman", 10)
         c.setLineWidth(0.5)
         
         for r in rows_to_draw:
@@ -256,7 +256,7 @@ def generate_justificante():
             c.drawString(col_x[0] + 5, row_y - 14, r['dia'])
             c.drawString(col_x[1] + 5, row_y - 14, r['hora'])
             c.drawString(col_x[2] + 5, row_y - 14, r['curso'])
-            m_text = r['motivo'][:45] + "..." if len(r['motivo']) > 48 else r['motivo']
+            m_text = r['motivo'][:50] + "..." if len(r['motivo']) > 53 else r['motivo']
             c.drawString(col_x[3] + 5, row_y - 14, m_text)
             
             row_y -= 20

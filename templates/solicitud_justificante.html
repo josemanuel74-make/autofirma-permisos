@@ -202,16 +202,33 @@
             currentMode = mode;
             document.getElementById('absence_mode').value = mode;
 
-            document.getElementById('sectionSpecific').style.display = (mode === 'specific') ? 'block' : 'none';
-            document.getElementById('sectionRange').style.display = (mode === 'range') ? 'block' : 'none';
+            const sectionSpecific = document.getElementById('sectionSpecific');
+            const sectionRange = document.getElementById('sectionRange');
+            
+            // Toggle Display (using grid to match form-grid)
+            sectionSpecific.style.display = (mode === 'specific') ? 'grid' : 'none';
+            sectionRange.style.display = (mode === 'range') ? 'grid' : 'none';
 
+            // Toggle Active Buttons
             document.getElementById('modeSpecific').classList.toggle('active', mode === 'specific');
             document.getElementById('modeRange').classList.toggle('active', mode === 'range');
 
-            // Required management
-            const rangeInputs = ['fecha_inicio', 'fecha_fin', 'motivo_general'];
-            rangeInputs.forEach(id => {
-                document.getElementById(id).required = (mode === 'range');
+            // CRITICAL: Disable inputs in the hidden section so they don't block form validation
+            const specificInputs = sectionSpecific.querySelectorAll('input');
+            const rangeInputs = sectionRange.querySelectorAll('input');
+
+            specificInputs.forEach(input => {
+                input.disabled = (mode !== 'specific');
+                if (input.name === 'fila_dia[]' || input.name === 'fila_motivo[]') {
+                    input.required = (mode === 'specific');
+                }
+            });
+
+            rangeInputs.forEach(input => {
+                input.disabled = (mode !== 'range');
+                if (['fecha_inicio', 'fecha_fin', 'motivo_general'].includes(input.id)) {
+                    input.required = (mode === 'range');
+                }
             });
         }
 
