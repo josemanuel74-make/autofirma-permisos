@@ -256,7 +256,7 @@ def generate_justificante():
             c.drawString(col_x[0] + 5, row_y - 14, r['dia'])
             c.drawString(col_x[1] + 5, row_y - 14, r['hora'])
             c.drawString(col_x[2] + 5, row_y - 14, r['curso'])
-            m_text = r['motivo'][:50] + "..." if len(r['motivo']) > 53 else r['motivo']
+            m_text = r['motivo'][:52] + "..." if len(r['motivo']) > 55 else r['motivo']
             c.drawString(col_x[3] + 5, row_y - 14, m_text)
             
             row_y -= 20

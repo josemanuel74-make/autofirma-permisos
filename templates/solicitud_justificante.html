@@ -30,12 +30,21 @@
             cursor: pointer;
             font-weight: 600;
             transition: all 0.2s;
+            color: #333 !important;
+            /* Force visible text against global white button text */
+            width: auto !important;
+            margin-top: 0 !important;
+            box-shadow: none !important;
         }
 
         .mode-btn.active {
             border-color: #3498db;
             background: #3498db;
-            color: white;
+            color: white !important;
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         .table-container {
@@ -205,9 +214,14 @@
             const sectionSpecific = document.getElementById('sectionSpecific');
             const sectionRange = document.getElementById('sectionRange');
 
-            // Toggle Display (using block for stability)
-            sectionSpecific.style.display = (mode === 'specific') ? 'block' : 'none';
-            sectionRange.style.display = (mode === 'range') ? 'block' : 'none';
+            // Use .hidden class instead of display: block/none to avoid UI white-out
+            if (mode === 'specific') {
+                sectionSpecific.classList.remove('hidden');
+                sectionRange.classList.add('hidden');
+            } else {
+                sectionSpecific.classList.add('hidden');
+                sectionRange.classList.remove('hidden');
+            }
 
             // Toggle Active Buttons
             document.getElementById('modeSpecific').classList.toggle('active', mode === 'specific');
