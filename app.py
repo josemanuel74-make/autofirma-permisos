@@ -262,18 +262,14 @@ def generate_justificante():
             row_y -= 20
             c.line(col_x[0], row_y, col_x[4], row_y) # Bottom line of the row
         
-        # Vertical Lines for the grid
-        c.setLineWidth(1.2)
-        c.line(col_x[0], table_top, col_x[0], row_y) # Left outer
-        c.line(col_x[4], table_top, col_x[4], row_y) # Right outer
-        
+        # Vertical Lines for the grid (Uniform 0.5 grid)
         c.setLineWidth(0.5)
-        for x in col_x[1:4]: # Inner vertical lines
+        for x in col_x:
             c.line(x, table_top, x, row_y)
 
-        # 3. FOOTER TEXT
+        # 3. FOOTER TEXT (Times-Roman 10pt)
         row_y -= 25
-        c.setFont("Helvetica", 11)
+        c.setFont("Times-Roman", 10)
         c.drawString(start_x, row_y, "Lo que participo a usted a los efectos oportunos.")
 
         # Prepare Overlay

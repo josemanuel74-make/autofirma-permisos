@@ -204,10 +204,10 @@
 
             const sectionSpecific = document.getElementById('sectionSpecific');
             const sectionRange = document.getElementById('sectionRange');
-            
-            // Toggle Display (using grid to match form-grid)
-            sectionSpecific.style.display = (mode === 'specific') ? 'grid' : 'none';
-            sectionRange.style.display = (mode === 'range') ? 'grid' : 'none';
+
+            // Toggle Display (using block for stability)
+            sectionSpecific.style.display = (mode === 'specific') ? 'block' : 'none';
+            sectionRange.style.display = (mode === 'range') ? 'block' : 'none';
 
             // Toggle Active Buttons
             document.getElementById('modeSpecific').classList.toggle('active', mode === 'specific');
