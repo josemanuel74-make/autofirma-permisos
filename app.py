@@ -11,8 +11,38 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
 # --- CONFIGURATION ---
-# Replace this with your actual Power Automate Webhook URL
-WEBHOOK_URL = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6500d208c0ce4a4d91f2e8d313e22aac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=LI_rqf4S28tioqVtXr2WmztpmdqY4qqnlGjTOSc92mc" 
+# Replace this with your actual Power Automate Webhook URLs
+WEBHOOK_URL_PERMISO = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6500d208c0ce4a4d91f2e8d313e22aac/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=LI_rqf4S28tioqVtXr2WmztpmdqY4qqnlGjTOSc92mc" 
+WEBHOOK_URL_JUSTIFICANTE = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c94fa3e6d5e44c95b834cb47140f9362/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4l1709SOgNvMKMcPO4jj0x7eHCtvEVKVRiE7LLAsy7I"
+
+def optimize_image_for_pdf(image_content, max_dim=1200):
+# ... (existing code for optimize_image_for_pdf)
+    """Resizes and compresses an image to reduce PDF size."""
+    try:
+        img = Image.open(io.BytesIO(image_content))
+        # Ensure RGB (removes alpha if any)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Resize if too large
+        w, h = img.size
+        if max(w, h) > max_dim:
+            if w > h:
+                new_w = max_dim
+                new_h = int(h * (max_dim / w))
+            else:
+                new_h = max_dim
+                new_w = int(w * (max_dim / h))
+            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        
+        img_pdf_io = io.BytesIO()
+        # Save as JPEG inside the PDF container to save space
+        img.save(img_pdf_io, format='JPEG', quality=80, optimize=True)
+        img_pdf_io.seek(0)
+        return img_pdf_io
+    except Exception as e:
+        print(f"ERROR optimizing image: {e}")
+        return io.BytesIO(image_content) # Fallback to original
 # ---------------------
 
 @app.route('/')
@@ -33,21 +63,30 @@ def save_signature():
         data = request.json
         signature_b64 = data.get('signature')
         nombre_original = data.get('nombre', 'Anonimo')
+        doc_type = data.get('type', 'permiso') # Default to permiso
+        
         nombre_sanitizado = nombre_original.replace(' ', '_')
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         
+        # Select Webhook
+        target_webhook = WEBHOOK_URL_PERMISO
+        if doc_type == 'justificante':
+            target_webhook = WEBHOOK_URL_JUSTIFICANTE
+            print(f"DEBUG: Using JUSTIFICANTE webhook for type={doc_type}")
+        else:
+            print(f"DEBUG: Using PERMISO webhook (default) for type={doc_type}")
+
         # Sanitize filename
         safe_nombre = "".join([c for c in nombre_sanitizado if c.isalnum() or c in ('_', '-')]).rstrip()
-        filename = f"Solicitud_Permiso_{safe_nombre}_{timestamp}_Firmado.pdf"
+        filename = f"Solicitud_{doc_type.capitalize()}_{safe_nombre}_{timestamp}_Firmado.pdf"
         
         print(f"DEBUG: Processing signature for {filename}")
-        # We no longer save the file locally.
 
         # --- POWER AUTOMATE INTEGRATION ---
         webhook_status = "skipped"
-        if WEBHOOK_URL:
+        if target_webhook:
             try:
-                print(f"DEBUG: Sending to Webhook: {WEBHOOK_URL}")
+                print(f"DEBUG: Sending to Webhook: {target_webhook}")
                 # Send all metadata and base64 file as a JSON payload
                 payload = data.copy()
                 payload.update({
@@ -55,7 +94,7 @@ def save_signature():
                     'filename': filename,
                     'file_base64': signature_b64
                 })
-                response = requests.post(WEBHOOK_URL, json=payload)
+                response = requests.post(target_webhook, json=payload)
                 print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
                 if response.ok:
                     webhook_status = "success"
@@ -64,6 +103,9 @@ def save_signature():
             except Exception as e_webhook:
                 print(f"ERROR: Webhook execution failed: {str(e_webhook)}")
                 webhook_status = f"error_{str(e_webhook)}"
+        else:
+            print("DEBUG: No webhook URL configured for this type. Skipping.")
+            webhook_status = "no_url_configured"
         # ----------------------------------
 
         return jsonify({
@@ -210,7 +252,7 @@ def generate_justificante():
 
         # 2. DRAW AUTHENTIC TABLE
         table_top = line_y - 25
-        col_x = [70, 145, 205, 275, 530] # Column boundaries
+        col_x = [70, 160, 215, 275, 530] # Column boundaries
         
         # Draw table header background (Lighter Grey)
         c.setFillColorRGB(0.95, 0.95, 0.95)
@@ -310,17 +352,15 @@ def generate_justificante():
         if adjunto_content:
             try:
                 if adjunto_ext in ['jpg', 'jpeg', 'png']:
-                    img = Image.open(io.BytesIO(adjunto_content))
-                    if img.mode != 'RGB': img = img.convert('RGB')
-                    img_pdf_io = io.BytesIO()
-                    img.save(img_pdf_io, format='PDF')
-                    img_pdf_io.seek(0)
+                    img_pdf_io = optimize_image_for_pdf(adjunto_content)
                     writer.append(PdfReader(img_pdf_io))
                 elif adjunto_ext == 'pdf':
                     writer.append(PdfReader(io.BytesIO(adjunto_content)))
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment to justificante: {str(e_merge)}")
 
+        for page in writer.pages:
+            page.compress_content_streams() # Compress PDF content
         out = io.BytesIO()
         writer.write(out)
         out.seek(0)
@@ -533,12 +573,7 @@ def generate_permiso():
                 ext = attachment_data['ext']
                 content = attachment_data['content']
                 if ext in ['jpg', 'jpeg', 'png']:
-                    img = Image.open(io.BytesIO(content))
-                    if img.mode != 'RGB':
-                        img = img.convert('RGB')
-                    img_pdf_io = io.BytesIO()
-                    img.save(img_pdf_io, format='PDF')
-                    img_pdf_io.seek(0)
+                    img_pdf_io = optimize_image_for_pdf(content)
                     attachment_reader = PdfReader(img_pdf_io)
                     writer.append(attachment_reader)
                 elif ext == 'pdf':
@@ -547,6 +582,8 @@ def generate_permiso():
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment: {str(e_merge)}")
 
+        for page in writer.pages:
+            page.compress_content_streams() # Compress PDF content
         # Write result to memory
         output_stream = io.BytesIO()
         writer.write(output_stream)

@@ -134,8 +134,8 @@
                 <input type="text" id="dni" name="dni" required>
             </div>
             <div class="form-group">
-                <label for="nrp">NRP *</label>
-                <input type="text" id="nrp" name="nrp" required>
+                <label for="nrp">NRP (opcional)</label>
+                <input type="text" id="nrp" name="nrp">
             </div>
 
             <!-- MODE 1: SPECIFIC -->
@@ -276,23 +276,46 @@
 
         function onSignSuccess(signatureB64) {
             showMessage("Firma completada. Enviando...", "success");
-            const formData = new FormData(document.getElementById('justificanteForm'));
-            const payload = Object.fromEntries(formData.entries());
+            // ASEGURAR QUE TODOS LOS CAMPOS ESTÁN PRESENTES (evita problemas con campos deshabilitados)
+            const payload = {
+                nombre: document.getElementById('nombre').value,
+                dni: document.getElementById('dni').value,
+                nrp: document.getElementById('nrp').value,
+                absence_mode: currentMode,
+                type: 'justificante',
+                signature: signatureB64,
+                fecha_doc: new Date().toLocaleDateString('es-ES'),
+                descripcion_adjunto: document.getElementById('descripcion_adjunto').value
+            };
 
-            payload.fila_dia = formData.getAll('fila_dia[]');
-            payload.fila_hora = formData.getAll('fila_hora[]');
-            payload.fila_curso = formData.getAll('fila_curso[]');
-            payload.fila_motivo = formData.getAll('fila_motivo[]');
-            payload.signature = signatureB64;
-            payload.type = 'justificante';
-
-            // Clean up empty fields from mode switch
             if (currentMode === 'range') {
-                payload.fila_dia = []; payload.fila_hora = []; payload.fila_curso = []; payload.fila_motivo = [];
+                payload.fecha_inicio = document.getElementById('fecha_inicio').value;
+                payload.fecha_fin = document.getElementById('fecha_fin').value;
+                payload.motivo_general = document.getElementById('motivo_general').value;
+                payload.filas = [];
             } else {
-                payload.fecha_inicio = ''; payload.fecha_fin = ''; payload.motivo_general = '';
+                payload.fecha_inicio = '';
+                payload.fecha_fin = '';
+                payload.motivo_general = ''; // Siempre se envía para que Power Automate no falle
+                
+                // Obtener datos de las filas
+                const dias = Array.from(document.querySelectorAll('input[name="fila_dia[]"]')).map(el => el.value);
+                const horas = Array.from(document.querySelectorAll('input[name="fila_hora[]"]')).map(el => el.value);
+                const cursos = Array.from(document.querySelectorAll('input[name="fila_curso[]"]')).map(el => el.value);
+                const motivos = Array.from(document.querySelectorAll('input[name="fila_motivo[]"]')).map(el => el.value);
+                
+                payload.filas = [];
+                for (let i = 0; i < dias.length; i++) {
+                    payload.filas.push({
+                        dia: dias[i],
+                        hora: horas[i],
+                        curso: cursos[i],
+                        motivo: motivos[i]
+                    });
+                }
             }
 
+            console.log("DEBUG Payload:", payload);
             fetch('/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
