@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # --- CONFIGURACIÓN ---
-PROJECT_DIR="~/autofirma-permisos" # Cambia esto si la ruta en el VPS es distinta
+# Detectamos automáticamente el directorio si el script se ejecuta desde la raíz del proyecto
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SERVICE_NAME="autofirma"            # Nombre del servicio systemd
 
 echo "🚀 Iniciando despliegue..."
