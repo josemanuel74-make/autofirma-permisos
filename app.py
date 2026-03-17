@@ -189,27 +189,38 @@ def generate_justificante():
         
         # Robust template path finding
         template_name = "justificacionfaltasprofesores.pdf"
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(base_dir, template_name)
         
-        if not os.path.exists(template_path):
-            print(f"DEBUG: Template not found at {template_path}. Search in {base_dir}...")
-            # Try case-insensitive search
+        # Try several possible locations
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), template_name),
+            os.path.join(os.getcwd(), template_name),
+            template_name
+        ]
+        
+        template_path = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                template_path = p
+                break
+        
+        if not template_path:
+            # Case-insensitive fallback
             try:
-                files = os.listdir(base_dir)
-                for f in files:
-                    if f.lower() == template_name.lower():
-                        template_path = os.path.join(base_dir, f)
-                        print(f"DEBUG: Found match: {template_path}")
-                        break
-            except Exception as e_ls:
-                print(f"DEBUG: Error listing dir: {e_ls}")
+                base_dirs = [os.path.dirname(os.path.abspath(__file__)), os.getcwd()]
+                for d in base_dirs:
+                    if os.path.exists(d):
+                        for f in os.listdir(d):
+                            if f.lower() == template_name.lower():
+                                template_path = os.path.join(d, f)
+                                break
+                    if template_path: break
+            except: pass
 
-        if not os.path.exists(template_path):
+        if not template_path:
             cwd = os.getcwd()
             return jsonify({
                 "status": "error", 
-                "message": f"No se encuentra la plantilla: {template_name} en {base_dir}. (CWD: {cwd})"
+                "message": f"No se encuentra la plantilla: {template_name} en {os.path.dirname(os.path.abspath(__file__))}. (CWD: {cwd})"
             }), 404
 
         anchors = get_pdf_anchors(template_path)
@@ -512,9 +523,9 @@ def generate_permiso():
 
         # PÁGINA 1
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
-        draw_smart('{{nrp}}', data.get('nrp', ''), 86, 559, 0) # Use canonical key
-        draw_smart('{{dni}}', data.get('dni', ''), 226, 560, 0)
-        draw_smart('{{asignatura}}', data.get('asignatura', ''), 378, 561, 0)
+        draw_smart('{{nrp}}', data.get('nrp', ''), 86, 558, 0) # Exact match from etiquetas
+        draw_smart('{{dni}}', data.get('dni', ''), 235, 558, 0) # Aligned with NRP
+        draw_smart('{{asignatura}}', data.get('asignatura', ''), 380, 558, 0) # Aligned with NRP
         
         # Use multiline for dias and motivo on BOTH pages if needed
         draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True, width=450)

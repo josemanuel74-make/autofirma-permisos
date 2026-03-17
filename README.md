@@ -72,3 +72,21 @@ autofirma-permisos/
 | reportlab | Estampado de texto sobre el PDF |
 | Pillow | Conversión de imágenes a PDF |
 | requests | Envío del webhook a Power Automate |
+
+## Despliegue en VPS
+
+Para actualizar el código en el VPS tras hacer un `git push` desde local:
+
+1. **Configuración inicial (solo la primera vez)**:
+   Asegúrate de que `deploy.sh` tiene permisos de ejecución en el servidor:
+   ```bash
+   chmod +x deploy.sh
+   ```
+
+2. **Actualizar**:
+   Ejecuta el script de despliegue:
+   ```bash
+   ./deploy.sh
+   ```
+
+Este script hará un `git pull` y reiniciará el servicio `autofirma`.

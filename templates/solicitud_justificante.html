@@ -181,13 +181,13 @@
 
             <div class="section-title">Documentación Adjunta</div>
             <div class="form-group full-width">
-                <label for="descripcion_adjunto">Descripción del justificante adjunto (opcional)</label>
-                <input type="text" id="descripcion_adjunto" name="descripcion_adjunto"
+                <label for="descripcion_adjunto">Descripción del justificante adjunto *</label>
+                <input type="text" id="descripcion_adjunto" name="descripcion_adjunto" required
                     placeholder="Ej: Informe médico, citación judicial, etc.">
             </div>
             <div class="form-group full-width">
-                <label for="archivo_adjunto">Subir Justificante (Imagen o PDF)</label>
-                <input type="file" id="archivo_adjunto" name="archivo_adjunto" accept="image/*,application/pdf">
+                <label for="archivo_adjunto">Subir Justificante (Imagen o PDF) *</label>
+                <input type="file" id="archivo_adjunto" name="archivo_adjunto" required accept="image/*,application/pdf">
                 <input type="hidden" id="adjunto_base64" name="adjunto_base64">
                 <input type="hidden" id="adjunto_nombre" name="adjunto_nombre">
             </div>
