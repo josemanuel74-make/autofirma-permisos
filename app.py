@@ -523,9 +523,9 @@ def generate_permiso():
 
         # PÁGINA 1
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
-        draw_smart('{{nrp}}', data.get('nrp', ''), 86, 558, 0) # Exact match from etiquetas
-        draw_smart('{{dni}}', data.get('dni', ''), 235, 558, 0) # Aligned with NRP
-        draw_smart('{{asignatura}}', data.get('asignatura', ''), 380, 558, 0) # Aligned with NRP
+        draw_smart('{{nrp}}', data.get('nrp', ''), 86, 558, 0) # Aligned with NRP tag
+        draw_smart('{{dni}}', data.get('dni', ''), 240, 558, 0) # Shifted right from previous 235
+        draw_smart('{{asignatura}}', data.get('asignatura', ''), 410, 558, 0) # Shifted right from previous 380
         
         # Use multiline for dias and motivo on BOTH pages if needed
         draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True, width=450)
