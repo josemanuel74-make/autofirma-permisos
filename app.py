@@ -92,8 +92,11 @@ def save_signature():
                 payload.update({
                     'timestamp': timestamp,
                     'filename': filename,
-                    'file_base64': signature_b64
+                    'file_base64': signature_b64,
+                    'fecha_solicitud': data.get('fecha', ''), # Alias for Power Automate
+                    'doc_type': doc_type
                 })
+                print(f"DEBUG: Webhook Payload Keys: {list(payload.keys())}")
                 response = requests.post(target_webhook, json=payload)
                 print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
                 if response.ok:
