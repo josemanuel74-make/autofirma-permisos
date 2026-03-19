@@ -641,10 +641,47 @@ def generate_permiso():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/storage')
-@app.route('/retriever')
-def dummy_servlets():
-    return "OK"
+# --- SERVLETS FOR MOBILE / MINIAPPLET SUPPORT ---
+# Temporary storage for signatures during the out-of-band mobile signing process.
+# Mapping: string identifier (v) -> base64 signature data
+signature_storage = {}
+
+@app.route('/storage', methods=['GET', 'POST'])
+def storage_servlet():
+    op = request.args.get('op')
+    print(f"DEBUG: /storage op={op} v={request.args.get('v')}")
+    if op == 'check':
+        return "OK"
+    if op == 'put':
+        v = request.args.get('v')
+        # Signature data can be in the form parameter 'dat' or in the raw request body
+        data = request.form.get('dat') or request.get_data()
+        if v and data:
+            if isinstance(data, bytes):
+                try:
+                    data = data.decode('utf-8')
+                except:
+                    import base64
+                    data = base64.b64encode(data).decode('utf-8')
+            signature_storage[v] = data
+            print(f"DEBUG: Stored signature for v={v} (Size: {len(data)})")
+            return "OK"
+    return "BadRequest", 400
+
+@app.route('/retriever', methods=['GET'])
+def retriever_servlet():
+    op = request.args.get('op')
+    print(f"DEBUG: /retriever op={op} v={request.args.get('v')}")
+    if op == 'check':
+        return "OK"
+    if op == 'get':
+        v = request.args.get('v')
+        if v and v in signature_storage:
+            data = signature_storage[v]
+            print(f"DEBUG: Retrieved signature for v={v}")
+            return data
+        return "NotFound", 404
+    return "BadRequest", 400
 
 if __name__ == '__main__':
     # Running on 0.0.0.0 to ensure accessibility if needed, debug=True for dev
