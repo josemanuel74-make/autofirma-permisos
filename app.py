@@ -651,7 +651,8 @@ def make_cors_response(content, status=200):
     resp = Response(content, status=status, mimetype='text/plain')
     resp.headers['Access-Control-Allow-Origin'] = '*'
     resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    resp.headers['Access-Control-Allow-Headers'] = '*'
+    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+    resp.headers['Access-Control-Allow-Credentials'] = 'true'
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
@@ -660,12 +661,18 @@ def storage_servlet():
     if request.method == 'OPTIONS':
         return make_cors_response("")
 
-    # Robust parameter detection (args, form, or json)
+    # Ultra-robust parameter detection (v, id, id_operacion)
     op = request.args.get('op') or request.form.get('op')
-    v = request.args.get('v') or request.form.get('v')
+    v = request.args.get('v') or request.form.get('v') or \
+        request.args.get('id') or request.form.get('id') or \
+        request.args.get('id_operacion') or request.form.get('id_operacion')
     
     print(f"DEBUG: /storage method={request.method} op={op} v={v}")
     
+    # Base health check
+    if not op and not v:
+        return make_cors_response("Storage Servlet Active (Use op=check to verify)")
+
     if op == 'check':
         return make_cors_response("OK")
     
@@ -691,10 +698,15 @@ def retriever_servlet():
         return make_cors_response("")
 
     op = request.args.get('op') or request.form.get('op')
-    v = request.args.get('v') or request.form.get('v')
+    v = request.args.get('v') or request.form.get('v') or \
+        request.args.get('id') or request.form.get('id') or \
+        request.args.get('id_operacion') or request.form.get('id_operacion')
     
-    print(f"DEBUG: /retriever op={op} v={v}")
+    print(f"DEBUG: /retriever method={request.method} op={op} v={v}")
     
+    if not op and not v:
+        return make_cors_response("Retriever Servlet Active (Use op=check to verify)")
+
     if op == 'check':
         return make_cors_response("OK")
         
