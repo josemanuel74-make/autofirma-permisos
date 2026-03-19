@@ -164,8 +164,8 @@ def get_pdf_anchors(template_path):
                     if key not in anchors:
                         anchors[key] = []
                     
-                    # Deduplication & basic filter
-                    if abs(final_x) > 0.001 or abs(final_y) > 0.001:
+                    # Deduplication & basic filter (ignore anchors that seem invalid or at 0,0)
+                    if abs(final_x) > 10 and abs(final_y) > 10:
                         is_dup = False
                         for existing in anchors[key]:
                             if existing[0] == i and abs(existing[1] - final_x) < 0.5 and abs(existing[2] - final_y) < 0.5:
@@ -475,16 +475,8 @@ def generate_permiso():
         anchors = get_pdf_anchors(template_name)
         
         def hide_anchors_on_page(page_idx):
-            from reportlab.lib import colors
-            c.setFillColor(colors.white)
-            for label, matches in anchors.items():
-                for p_idx, x, y, size in matches:
-                    if p_idx == page_idx:
-                        # Draw a white rectangle over the tag
-                        # Estimate width: label length * half of font size
-                        w = len(label) * size * 0.55
-                        c.rect(x - 2, y - 2, w + 4, size + 4, fill=1, stroke=0)
-            c.setFillColor(colors.black)
+            # User requested to remove the white-box approach
+            pass
         
         # Helper to draw using anchors with fallback
         def draw_at_anchor(label, text, fallback_x, fallback_y, page_idx=0, size=10, multiline=False, width=450, occurrence=0):
@@ -536,8 +528,8 @@ def generate_permiso():
         hide_anchors_on_page(0)
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
         draw_smart('{{nrp}}', data.get('nrp', ''), 86, 558, 0) # Aligned with NRP tag
-        draw_smart('{{dni}}', data.get('dni', ''), 240, 558, 0) # Shifted right from previous 235
-        draw_smart('{{asignatura}}', data.get('asignatura', ''), 410, 558, 0) # Shifted right from previous 380
+        draw_smart('{{dni}}', data.get('dni', ''), 235, 558.6, 0)
+        draw_smart('{{asignatura}}', data.get('asignatura', ''), 390, 558.6, 0) # Shifted right from previous 380
         
         # Use multiline for dias and motivo on BOTH pages if needed
         draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 82, 458, 0, multiline=True, width=450)
