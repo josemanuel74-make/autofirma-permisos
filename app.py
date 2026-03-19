@@ -646,15 +646,31 @@ def generate_permiso():
 # Mapping: string identifier (v) -> base64 signature data
 signature_storage = {}
 
-@app.route('/storage', methods=['GET', 'POST'])
+def make_cors_response(content, status=200):
+    from flask import Response
+    resp = Response(content, status=status, mimetype='text/plain')
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    resp.headers['Access-Control-Allow-Headers'] = '*'
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
+@app.route('/storage', methods=['GET', 'POST', 'OPTIONS'])
 def storage_servlet():
-    op = request.args.get('op')
-    print(f"DEBUG: /storage op={op} v={request.args.get('v')}")
+    if request.method == 'OPTIONS':
+        return make_cors_response("")
+
+    # Robust parameter detection (args, form, or json)
+    op = request.args.get('op') or request.form.get('op')
+    v = request.args.get('v') or request.form.get('v')
+    
+    print(f"DEBUG: /storage method={request.method} op={op} v={v}")
+    
     if op == 'check':
-        return "OK"
+        return make_cors_response("OK")
+    
     if op == 'put':
-        v = request.args.get('v')
-        # Signature data can be in the form parameter 'dat' or in the raw request body
+        # Data can be in 'dat' param or raw body
         data = request.form.get('dat') or request.get_data()
         if v and data:
             if isinstance(data, bytes):
@@ -664,24 +680,33 @@ def storage_servlet():
                     import base64
                     data = base64.b64encode(data).decode('utf-8')
             signature_storage[v] = data
-            print(f"DEBUG: Stored signature for v={v} (Size: {len(data)})")
-            return "OK"
-    return "BadRequest", 400
+            print(f"DEBUG: /storage SUCCESS v={v} size={len(data)}")
+            return make_cors_response("OK")
+            
+    return make_cors_response("BadRequest", 400)
 
-@app.route('/retriever', methods=['GET'])
+@app.route('/retriever', methods=['GET', 'OPTIONS'])
 def retriever_servlet():
-    op = request.args.get('op')
-    print(f"DEBUG: /retriever op={op} v={request.args.get('v')}")
+    if request.method == 'OPTIONS':
+        return make_cors_response("")
+
+    op = request.args.get('op') or request.form.get('op')
+    v = request.args.get('v') or request.form.get('v')
+    
+    print(f"DEBUG: /retriever op={op} v={v}")
+    
     if op == 'check':
-        return "OK"
+        return make_cors_response("OK")
+        
     if op == 'get':
-        v = request.args.get('v')
         if v and v in signature_storage:
             data = signature_storage[v]
-            print(f"DEBUG: Retrieved signature for v={v}")
-            return data
-        return "NotFound", 404
-    return "BadRequest", 400
+            print(f"DEBUG: /retriever SUCCESS v={v}")
+            return make_cors_response(data)
+        print(f"DEBUG: /retriever NOT FOUND v={v}")
+        return make_cors_response("NotFound", 404)
+        
+    return make_cors_response("BadRequest", 400)
 
 if __name__ == '__main__':
     # Running on 0.0.0.0 to ensure accessibility if needed, debug=True for dev
