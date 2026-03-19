@@ -434,10 +434,10 @@ def generate_permiso():
                 }
         
         # Load and clone the PDF to preserve structure and forms
-        # We rename the template if it's renamed, or just keep using the same file but updating references
-        template_name = "Solicitud Permiso Definitivo.pdf"
+        # We use the tagged version as the master template
+        template_name = "Solicitud Permiso Definitivo+etiquetas.pdf"
         if not os.path.exists(template_name):
-            template_name = "Solicitud Permiso.pdf"  # Fallback a la plantilla anterior
+            template_name = "Solicitud Permiso Definitivo.pdf" # Fallback if missing
             
         writer = PdfWriter(clone_from=template_name)
 
@@ -470,10 +470,20 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- DYNAMIC ANCHOR APPROACH ---
-        # We use the '+etiquetas' version to find WHERE to draw, 
-        # but we draw on the 'Definitivo' version to keep it clean.
-        labels_template = "Solicitud Permiso Definitivo+etiquetas.pdf"
-        anchors = get_pdf_anchors(labels_template)
+        # We use the master template to find anchors
+        anchors = get_pdf_anchors(template_name)
+        
+        def hide_anchors_on_page(page_idx):
+            from reportlab.lib import colors
+            c.setFillColor(colors.white)
+            for label, matches in anchors.items():
+                for p_idx, x, y, size in matches:
+                    if p_idx == page_idx:
+                        # Draw a white rectangle over the tag
+                        # Estimate width: label length * half of font size
+                        w = len(label) * size * 0.55
+                        c.rect(x - 2, y - 2, w + 4, size + 4, fill=1, stroke=0)
+            c.setFillColor(colors.black)
         
         # Helper to draw using anchors with fallback
         def draw_at_anchor(label, text, fallback_x, fallback_y, page_idx=0, size=10, multiline=False, width=450, occurrence=0):
@@ -522,6 +532,7 @@ def generate_permiso():
                 draw_text(x, y, text, draw_size)
 
         # PÁGINA 1
+        hide_anchors_on_page(0)
         draw_smart('{{nombre}}', data.get('nombre', ''), 85, 618, 0, size=11)
         draw_smart('{{nrp}}', data.get('nrp', ''), 86, 558, 0) # Aligned with NRP tag
         draw_smart('{{dni}}', data.get('dni', ''), 240, 558, 0) # Shifted right from previous 235
@@ -538,6 +549,7 @@ def generate_permiso():
         c.showPage()  # Fin Página 1
 
         # --- PÁGINA 2 (ANEXO I) ---
+        hide_anchors_on_page(1)
         draw_smart('{{nombre}}', data.get('nombre', ''), 53, 644, 1)
         draw_smart('{{nrp}}', data.get('nrp', ''), 344, 644, 1)
         draw_smart('{{dias_solicitados}}', data.get('dias_solicitados', ''), 299, 632, 1)
