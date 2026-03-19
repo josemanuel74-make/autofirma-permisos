@@ -142,7 +142,7 @@
     <script>
         function showMessage(msg, type) {
             const el = document.getElementById('status');
-            el.innerHTML = msg; // Changed to innerHTML to allow links
+            el.innerHTML = msg; 
             el.className = 'status-message ' + type;
             el.style.display = 'block';
             console.log("Status update:", msg);
@@ -150,9 +150,43 @@
 
         function showErrorCallback(type, message) {
             console.error("Signature error:", type, message);
-            showMessage("Error en firma: " + type + " - " + message, "error");
+            let displayMsg = "Error en firma (" + type + "): " + message;
+            
+            // Sugerencia para iOS / Errores de conexión
+            if (message.indexOf("recuperar") !== -1 || message.indexOf("conectar") !== -1) {
+                displayMsg += "<br><br><b>💡 ¿Problemas en iOS?</b> Revisa tu conexión en <a href='/mobile-diag' target='_blank' style='color:white; font-weight:bold; text-decoration:underline;'>esta página de diagnóstico</a>.";
+            }
+
+            showMessage(displayMsg, "error");
             document.getElementById('signBtn').disabled = false;
             document.getElementById('signBtn').textContent = "Generar y Firmar Documento";
+
+            // Si tenemos el PDF, mostramos botón de reintento manual
+            if (window.lastPDF) {
+                const statusEl = document.getElementById('status');
+                const retryContainer = document.createElement('div');
+                retryContainer.style.marginTop = "20px";
+                retryContainer.style.textAlign = "center";
+                
+                const retryBtn = document.createElement('button');
+                retryBtn.innerHTML = '🔄 REINTENTAR FIRMA MANUALMENTE (iOS)';
+                retryBtn.style.background = "#f39c12";
+                retryBtn.style.color = "white";
+                retryBtn.style.border = "none";
+                retryBtn.style.padding = "12px 24px";
+                retryBtn.style.borderRadius = "8px";
+                retryBtn.style.fontWeight = "bold";
+                retryBtn.style.cursor = "pointer";
+                retryBtn.style.width = "100%";
+                
+                retryBtn.onclick = () => {
+                   showMessage("Reintentando firma... asegúrese de tener AutoFirma instalada.", "info");
+                   AutoScript.sign(window.lastPDF, "SHA256withRSA", "PAdES", window.lastParams, showSignResultCallback, showErrorCallback);
+                };
+                
+                retryContainer.appendChild(retryBtn);
+                statusEl.appendChild(retryContainer);
+            }
         }
 
         function showSignResultCallback(signatureB64, certificateB64) {
@@ -284,12 +318,16 @@
 
                     if (typeof AutoScript !== 'undefined') {
                         console.log("Invocando AutoScript.sign...");
+                        // Almacenamos para posibles reintentos manuales
+                        window.lastPDF = result.pdf_base64;
+                        window.lastParams = result.extra_params || null;
+
                         try {
                             AutoScript.sign(
-                                result.pdf_base64,
+                                window.lastPDF,
                                 "SHA256withRSA",
                                 "PAdES",
-                                result.extra_params || null,
+                                window.lastParams,
                                 showSignResultCallback,
                                 showErrorCallback
                             );
