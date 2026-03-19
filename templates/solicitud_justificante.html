@@ -214,7 +214,6 @@
             const sectionSpecific = document.getElementById('sectionSpecific');
             const sectionRange = document.getElementById('sectionRange');
 
-            // Use .hidden class instead of display: block/none to avoid UI white-out
             if (mode === 'specific') {
                 sectionSpecific.classList.remove('hidden');
                 sectionRange.classList.add('hidden');
@@ -223,11 +222,9 @@
                 sectionRange.classList.remove('hidden');
             }
 
-            // Toggle Active Buttons
             document.getElementById('modeSpecific').classList.toggle('active', mode === 'specific');
             document.getElementById('modeRange').classList.toggle('active', mode === 'range');
 
-            // CRITICAL: Disable inputs in the hidden section so they don't block form validation
             const specificInputs = sectionSpecific.querySelectorAll('input');
             const rangeInputs = sectionRange.querySelectorAll('input');
 
@@ -261,10 +258,21 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof AutoScript !== 'undefined') {
                 AutoScript.cargarAppAfirma();
+                // Optimización para móviles
+                if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                    AutoScript.setForceWSMode(true);
+                    var srvOrigin = window.location.origin;
+                    if (window.location.protocol === "https:" && srvOrigin.startsWith("http:")) {
+                        srvOrigin = srvOrigin.replace("http:", "https:");
+                    }
+                    AutoScript.setServlets(srvOrigin + "/storage", srvOrigin + "/retriever");
+                } else {
+                    AutoScript.setServlets(window.location.origin + "/storage", window.location.origin + "/retriever");
+                }
             }
             const now = new Date();
             document.getElementById('fecha_doc').value = now.toISOString().split('T')[0];
-            addRow(); // Initial row
+            addRow(); 
         });
 
         function showMessage(msg, type) {
@@ -274,9 +282,53 @@
             el.style.display = 'block';
         }
 
+        function onSignError(type, message) {
+            console.error("Signature error:", type, message);
+            let displayMsg = "Error en firma (" + type + "): " + message;
+            
+            if (message.indexOf("recuperar") !== -1 || message.indexOf("conectar") !== -1) {
+                displayMsg += "<br><br><b>💡 ¿Problemas en iOS?</b> Revisa tu conexión en <a href='/mobile-diag' target='_blank' style='color:white; font-weight:bold; text-decoration:underline;'>esta página de diagnóstico</a>.";
+            }
+
+            showMessage(displayMsg, "error");
+            document.getElementById('signBtn').disabled = false;
+            document.getElementById('signBtn').textContent = "Generar y Firmar con AutoFirma";
+
+            if (window.lastPDF) {
+                const statusEl = document.getElementById('status');
+                const retryContainer = document.createElement('div');
+                retryContainer.style.marginTop = "20px";
+                retryContainer.style.textAlign = "center";
+                
+                const retryBtn = document.createElement('button');
+                retryBtn.innerHTML = '🔄 REINTENTAR FIRMA MANUALMENTE (iOS)';
+                retryBtn.className = 'mode-btn'; // Generic stylable class
+                retryBtn.style.background = "#f39c12";
+                retryBtn.style.color = "white !important";
+                retryBtn.style.padding = "12px 24px";
+                retryBtn.style.width = "100%";
+                
+                retryBtn.onclick = () => {
+                   showMessage("Reintentando firma... asegúrese de tener AutoFirma instalada.", "info");
+                   var dataToSign = window.lastPDF;
+                   var params = window.lastParams;
+                   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                       dataToSign = null;
+                       if (params.indexOf("id=") === -1 && window.lastSignId) {
+                           params += (params ? "\n" : "") + "id=" + window.lastSignId;
+                       }
+                   }
+                   AutoScript.sign(dataToSign, "SHA256withRSA", "PAdES", params, onSignSuccess, onSignError);
+                };
+                
+                retryContainer.appendChild(retryBtn);
+                statusEl.appendChild(retryContainer);
+            }
+        }
+
         function onSignSuccess(signatureB64) {
-            showMessage("Firma completada. Enviando...", "success");
-            // ASEGURAR QUE TODOS LOS CAMPOS ESTÁN PRESENTES (evita problemas con campos deshabilitados)
+            showMessage("Firma completada con éxito. Guardando en servidor...", "success");
+            
             const payload = {
                 nombre: document.getElementById('nombre').value,
                 dni: document.getElementById('dni').value,
@@ -284,6 +336,7 @@
                 absence_mode: currentMode,
                 type: 'justificante',
                 signature: signatureB64,
+                fecha: document.getElementById('fecha_doc').value, // Para el webhook
                 fecha_doc: new Date().toLocaleDateString('es-ES'),
                 descripcion_adjunto: document.getElementById('descripcion_adjunto').value
             };
@@ -294,11 +347,6 @@
                 payload.motivo_general = document.getElementById('motivo_general').value;
                 payload.filas = [];
             } else {
-                payload.fecha_inicio = '';
-                payload.fecha_fin = '';
-                payload.motivo_general = ''; // Siempre se envía para que Power Automate no falle
-                
-                // Obtener datos de las filas
                 const dias = Array.from(document.querySelectorAll('input[name="fila_dia[]"]')).map(el => el.value);
                 const horas = Array.from(document.querySelectorAll('input[name="fila_hora[]"]')).map(el => el.value);
                 const cursos = Array.from(document.querySelectorAll('input[name="fila_curso[]"]')).map(el => el.value);
@@ -315,83 +363,100 @@
                 }
             }
 
-            console.log("DEBUG Payload:", payload);
             fetch('/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             }).then(r => r.json()).then(data => {
                 if (data.status === 'success') {
-                    showMessage("¡Documento guardado con éxito!", "success");
+                    const statusEl = document.getElementById('status');
+                    statusEl.innerHTML = '';
+                    
+                    const container = document.createElement('div');
+                    container.className = 'final-container';
+
+                    const msg = document.createElement('h2');
+                    msg.textContent = '¡DOCUMENTO FIRMADO Y GUARDADO!';
+                    container.appendChild(msg);
+
                     const dl = document.createElement('button');
-                    dl.textContent = "Descargar PDF Firmado";
+                    dl.textContent = "DESCARGAR PDF FIRMADO";
                     dl.onclick = () => {
                         const a = document.createElement('a');
                         a.href = "data:application/pdf;base64," + signatureB64;
                         a.download = "Justificante_Firmado.pdf";
                         a.click();
                     }
-                    document.getElementById('status').appendChild(document.createElement('br'));
-                    document.getElementById('status').appendChild(dl);
+                    container.appendChild(dl);
+                    statusEl.appendChild(container);
+                    statusEl.style.display = 'block';
+                    statusEl.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showMessage("Error al guardar: " + data.message, "error");
                 }
+            }).catch(err => {
+                showMessage("Error de red al guardar: " + err, "error");
+            }).finally(() => {
+                document.getElementById('signBtn').disabled = false;
+                document.getElementById('signBtn').textContent = "Generar y Firmar con AutoFirma";
             });
         }
 
-        window.onerror = function (message, source, lineno, colno, error) {
-            console.error("Global JS Error:", message, "at", source, ":", lineno);
-            showMessage("Error en la página: " + message, "error");
-        };
-
         async function handleButtonClick() {
-            console.log("Button clicked!");
             const btn = document.getElementById('signBtn');
             const form = document.getElementById('justificanteForm');
 
-            // Check required fields manually since we aren't using type="submit"
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
 
             btn.disabled = true;
+            btn.textContent = "Procesando...";
             await submitForm();
         }
 
         async function submitForm() {
             const btn = document.getElementById('signBtn');
             const form = document.getElementById('justificanteForm');
-            showMessage("Generando PDF dinámico...", "info");
-            console.log("Submitting justificante form...");
+            showMessage("Generando PDF... por favor espere", "info");
 
             const formData = new FormData(form);
             try {
                 const res = await fetch('/generate_justificante', { method: 'POST', body: formData });
-                console.log("PDF Generation response status:", res.status);
                 const result = await res.json();
 
                 if (result.status === 'success') {
-                    console.log("PDF Generated successfully. Base64 length:", result.pdf_base64.length);
+                    // Fallback link
+                    const draftLink = `<br><a href="data:application/pdf;base64,${result.pdf_base64}" download="Borrador_No_Firmado.pdf" style="color: blue; text-decoration: underline;">Descargar borrador (si AutoFirma no abre)</a>`;
+                    showMessage("PDF Generado con éxito. Abriendo AutoFirma..." + draftLink, "info");
 
-                    if (typeof AutoScript === 'undefined') {
-                        showMessage("Error: El motor de AutoFirma (AutoScript) no se ha cargado correctamente.", "error");
+                    if (typeof AutoScript !== 'undefined') {
+                        window.lastPDF = result.pdf_base64;
+                        window.lastParams = result.extra_params || null;
+                        window.lastSignId = result.sign_id || null;
+
+                        var dataToSign = window.lastPDF;
+                        var params = window.lastParams;
+                        
+                        if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                            console.log("Usando Firma Triangulada para móvil (ID: " + result.sign_id + ")");
+                            dataToSign = null; 
+                            if (params.indexOf("id=") === -1 && window.lastSignId) {
+                                params += (params ? "\n" : "") + "id=" + window.lastSignId;
+                            }
+                        }
+
+                        AutoScript.sign(dataToSign, "SHA256withRSA", "PAdES", params, onSignSuccess, onSignError);
+                    } else {
+                        showMessage("Error: El motor de AutoFirma no se ha cargado.", "error");
                         btn.disabled = false;
-                        return;
                     }
-
-                    console.log("Invocando AutoScript.sign...");
-                    AutoScript.sign(result.pdf_base64, "SHA256withRSA", "PAdES", result.extra_params || null,
-                        onSignSuccess, (t, m) => {
-                            console.error("AutoScript Error:", t, m);
-                            showMessage("Error de AutoFirma: " + m, "error");
-                            btn.disabled = false;
-                        });
                 } else {
-                    console.error("Server Error:", result.message);
-                    showMessage("Error del servidor: " + result.message, "error");
+                    showMessage("Error generando PDF: " + result.message, "error");
                     btn.disabled = false;
                 }
             } catch (err) {
-                console.error("Fetch Exception:", err);
                 showMessage("Error de red: " + err, "error");
                 btn.disabled = false;
             }

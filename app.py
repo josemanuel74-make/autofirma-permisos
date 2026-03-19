@@ -405,8 +405,18 @@ def generate_justificante():
             f"signaturePositionOnPageUpperRightY=225\n"
             f"signatureCertificationLevel=2\n"
         )
-        print(f"DEBUG: Justificante generated. PDF Size: {len(pdf_b64)} chars. ExtraParams:\n{extra}")
-        return jsonify({"status": "success", "pdf_base64": pdf_b64, "extra_params": extra})
+        # Pre-store for triangular signing (mobile support)
+        import uuid
+        sign_id = str(uuid.uuid4())
+        signature_storage[sign_id] = pdf_b64
+        
+        print(f"DEBUG: Justificante generated. ID: {sign_id}")
+        return jsonify({
+            "status": "success", 
+            "pdf_base64": pdf_b64, 
+            "sign_id": sign_id,
+            "extra_params": extra
+        })
     except Exception as e:
         import traceback
         traceback.print_exc()
