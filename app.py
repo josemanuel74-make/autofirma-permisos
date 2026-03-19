@@ -434,13 +434,15 @@ def generate_permiso():
                 }
         
         # Load and clone the PDF to preserve structure and forms
-        # We use the tagged version as the master template
-        template_name = "Solicitud Permiso Definitivo+etiquetas.pdf"
+        # Background: Clean version for rendering
+        # Coordination: Tagged version for anchors
+        template_render = "Solicitud Permiso Definitivo.pdf"
+        template_anchors = "Solicitud Permiso Definitivo+etiquetas.pdf"
         
-        if not os.path.exists(template_name):
-            return jsonify({"status": "error", "message": f"La plantilla maestra {template_name} no se encuentra en el servidor."}), 404
+        if not os.path.exists(template_render):
+            template_render = template_anchors # Fallback if clean is missing
             
-        writer = PdfWriter(clone_from=template_name)
+        writer = PdfWriter(clone_from=template_render)
 
 
 
@@ -471,8 +473,8 @@ def generate_permiso():
                 current_y -= (size + 4)
 
         # --- DYNAMIC ANCHOR APPROACH ---
-        # We use the master template to find anchors
-        anchors = get_pdf_anchors(template_name)
+        # We use the tagged template to find anchors
+        anchors = get_pdf_anchors(template_anchors)
         
         def hide_anchors_on_page(page_idx):
             # User requested to remove the white-box approach
