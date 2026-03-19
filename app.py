@@ -408,7 +408,7 @@ def generate_justificante():
         # Pre-store for triangular signing (mobile support)
         import uuid
         sign_id = str(uuid.uuid4())
-        signature_storage[sign_id] = pdf_b64
+        save_to_storage(sign_id, pdf_b64)
         
         print(f"DEBUG: Justificante generated. ID: {sign_id}")
         return jsonify({
@@ -659,7 +659,7 @@ def generate_permiso():
         # Generar un ID único para firma triangular (soporte iOS/móvil)
         import uuid
         sign_id = str(uuid.uuid4())
-        signature_storage[sign_id] = pdf_base64
+        save_to_storage(sign_id, pdf_base64)
         
         return jsonify({
             "status": "success", 
@@ -675,10 +675,32 @@ def generate_permiso():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- SERVLETS FOR MOBILE / MINIAPPLET SUPPORT ---
-# Temporary storage for signatures during the out-of-band mobile signing process.
-# Mapping: string identifier (v) -> base64 signature data
-signature_storage = {}
+# --- PERSISTENCIA PARA MULTI-WORKER (GUNICORN) ---
+# En un VPS con varios hilos, la memoria RAM no se comparte. 
+# Guardamos los PDFs temporales en disco para que todos los hilos los vean.
+TEMP_STORAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_storage')
+os.makedirs(TEMP_STORAGE_DIR, exist_ok=True)
+
+def save_to_storage(key, data):
+    """Guarda datos (Base64) en disco de forma atómica."""
+    if not key or not data: return
+    path = os.path.join(TEMP_STORAGE_DIR, f"{key}.b64")
+    with open(path, 'w') as f:
+        f.write(data)
+
+def get_from_storage(key):
+    """Recupera datos de disco."""
+    if not key: return None
+    path = os.path.join(TEMP_STORAGE_DIR, f"{key}.b64")
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                return f.read()
+        except: return None
+    return None
+
+# Mantenemos por compatibilidad si es necesario, pero ya no se usa como almacén principal
+signature_storage = {} 
 
 def make_cors_response(content, status=200):
     from flask import Response
@@ -720,7 +742,7 @@ def storage_servlet():
                 except:
                     import base64
                     data = base64.b64encode(data).decode('utf-8')
-            signature_storage[v] = data
+            save_to_storage(v, data)
             print(f"DEBUG: /storage SUCCESS v={v} size={len(data)}")
             return make_cors_response("OK")
             
@@ -745,8 +767,8 @@ def retriever_servlet():
         return make_cors_response("OK")
         
     if op == 'get':
-        if v and v in signature_storage:
-            data = signature_storage[v]
+        data = get_from_storage(v)
+        if data:
             print(f"DEBUG: /retriever SUCCESS v={v}")
             return make_cors_response(data)
         print(f"DEBUG: /retriever NOT FOUND v={v}")
