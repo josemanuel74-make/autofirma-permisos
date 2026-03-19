@@ -685,7 +685,7 @@ def storage_servlet():
             
     return make_cors_response("BadRequest", 400)
 
-@app.route('/retriever', methods=['GET', 'OPTIONS'])
+@app.route('/retriever', methods=['GET', 'POST', 'OPTIONS'])
 def retriever_servlet():
     if request.method == 'OPTIONS':
         return make_cors_response("")
