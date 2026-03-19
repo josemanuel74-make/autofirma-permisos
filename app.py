@@ -628,9 +628,15 @@ def generate_permiso():
         
         final_filename = f"Solicitud_Permiso_{safe_name}_{timestamp_str}_Rellena.pdf"
         
+        # Generar un ID único para firma triangular (soporte iOS/móvil)
+        import uuid
+        sign_id = str(uuid.uuid4())
+        signature_storage[sign_id] = pdf_base64
+        
         return jsonify({
             "status": "success", 
             "pdf_base64": pdf_base64, 
+            "sign_id": sign_id,
             "filename": final_filename,
             "extra_params": extra_params
         })

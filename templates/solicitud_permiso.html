@@ -94,7 +94,7 @@
             <div class="section-title">Detalles del Permiso</div>
 
             <div class="form-group full-width">
-                <label for="motivo">Motivo de la solicitud *</label>
+                <label for="motivo">Nombre del motivo *</label>
                 <textarea id="motivo" name="motivo" required
                     placeholder="Escriba aquí el motivo detallado..."></textarea>
             </div>
@@ -181,7 +181,16 @@
                 
                 retryBtn.onclick = () => {
                    showMessage("Reintentando firma... asegúrese de tener AutoFirma instalada.", "info");
-                   AutoScript.sign(window.lastPDF, "SHA256withRSA", "PAdES", window.lastParams, showSignResultCallback, showErrorCallback);
+                   // Reintento manual usando Firma Triangulada si es móvil
+                   var dataToSign = window.lastPDF;
+                   var params = window.lastParams;
+                   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                       dataToSign = null;
+                       if (params.indexOf("id=") === -1 && window.lastSignId) {
+                           params += (params ? "\n" : "") + "id=" + window.lastSignId;
+                       }
+                   }
+                   AutoScript.sign(dataToSign, "SHA256withRSA", "PAdES", params, showSignResultCallback, showErrorCallback);
                 };
                 
                 retryContainer.appendChild(retryBtn);
@@ -321,13 +330,27 @@
                         // Almacenamos para posibles reintentos manuales
                         window.lastPDF = result.pdf_base64;
                         window.lastParams = result.extra_params || null;
+                        window.lastSignId = result.sign_id || null;
 
                         try {
+                            var dataToSign = window.lastPDF;
+                            var params = window.lastParams;
+                            
+                            // Firma Triangulada para móviles (Android/iOS)
+                            // null como datos + ID en parámetros evita límite longitud URL en iOS (Error AI600001)
+                            if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                                console.log("Usando Firma Triangulada para móvil (ID: " + result.sign_id + ")");
+                                dataToSign = null; 
+                                if (params.indexOf("id=") === -1 && result.sign_id) {
+                                    params += (params ? "\n" : "") + "id=" + result.sign_id;
+                                }
+                            }
+
                             AutoScript.sign(
-                                window.lastPDF,
+                                dataToSign,
                                 "SHA256withRSA",
                                 "PAdES",
-                                window.lastParams,
+                                params,
                                 showSignResultCallback,
                                 showErrorCallback
                             );
