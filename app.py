@@ -436,8 +436,9 @@ def generate_permiso():
         # Load and clone the PDF to preserve structure and forms
         # We use the tagged version as the master template
         template_name = "Solicitud Permiso Definitivo+etiquetas.pdf"
+        
         if not os.path.exists(template_name):
-            template_name = "Solicitud Permiso Definitivo.pdf" # Fallback if missing
+            return jsonify({"status": "error", "message": f"La plantilla maestra {template_name} no se encuentra en el servidor."}), 404
             
         writer = PdfWriter(clone_from=template_name)
 
