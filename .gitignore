@@ -19,3 +19,5 @@ registros_permisos.csv
 .vscode/
 .idea/
 .DS_Store
+# Documentation artifacts
+docs/
