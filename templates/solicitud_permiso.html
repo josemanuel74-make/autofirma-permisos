@@ -31,8 +31,15 @@
                 // Force server-side communication mode for mobile devices
                 if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
                     AutoScript.setForceWSMode(true);
+                    // Ensure HTTPS for servlets if page is HTTPS (avoiding issues with proxies)
+                    var srvOrigin = window.location.origin;
+                    if (window.location.protocol === "https:" && srvOrigin.startsWith("http:")) {
+                        srvOrigin = srvOrigin.replace("http:", "https:");
+                    }
+                    AutoScript.setServlets(srvOrigin + "/storage", srvOrigin + "/retriever");
+                } else {
+                    AutoScript.setServlets(window.location.origin + "/storage", window.location.origin + "/retriever");
                 }
-                AutoScript.setServlets(window.location.origin + "/storage", window.location.origin + "/retriever");
             }
 
             // Initialize date picker in multiple mode

@@ -720,6 +720,83 @@ def retriever_servlet():
         
     return make_cors_response("BadRequest", 400)
 
+@app.route('/mobile-diag')
+def mobile_diag():
+    from flask import render_template_string
+    return render_template_string("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>AutoFirma Mobile Diagnostic</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: sans-serif; padding: 20px; line-height: 1.5; background: #f5f7fa; color: #333; }
+                .success { color: #2ecc71; font-weight: bold; }
+                .error { color: #e74c3c; font-weight: bold; }
+                .card { background: white; border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+                button { padding: 12px 24px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; font-weight: bold; }
+                .btn-primary { background: #3498db; color: white; }
+                .btn-secondary { background: #95a5a6; color: white; }
+                pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <h1>🛠 AutoFirma Diagnostic</h1>
+            <p>Usa esta página para identificar por qué falla la firma en tu móvil.</p>
+            
+            <div class="card">
+                <h3>1. Prueba de Servlets (Conexión)</h3>
+                <div id="diag-storage">Storage: Pendiente...</div>
+                <div id="diag-retriever">Retriever: Pendiente...</div>
+                <p><small>Si sale ERROR, el móvil no puede llegar al servidor de firma (posiblemente por SSL o Firewall).</small></p>
+            </div>
+
+            <div class="card">
+                <h3>2. Prueba de Protocolo (Abrir App)</h3>
+                <p>Haz clic para intentar abrir la App AutoFirma directamente:</p>
+                <button class="btn-primary" onclick="window.location.href='afirma://'">Abrir AutoFirma (afirma://)</button>
+                <p><small>Si NO se abre nada, es que no tienes la App AutoFirma instalada o el navegador bloquea los protocolos personalizados.</small></p>
+            </div>
+
+            <div class="card">
+                <h3>3. Info del Sistema</h3>
+                <pre id="sys-info"></pre>
+            </div>
+
+            <button class="btn-primary" onclick="runTests()">Re-ejecutar Tests</button>
+
+            <script>
+                function runTests() {
+                    const storageUrl = window.location.origin + '/storage?op=check';
+                    const retrieverUrl = window.location.origin + '/retriever?op=check';
+                    
+                    document.getElementById('sys-info').innerText = "Origin: " + window.location.origin + "\\nUA: " + navigator.userAgent;
+
+                    fetch(storageUrl)
+                        .then(r => r.text())
+                        .then(t => {
+                            document.getElementById('diag-storage').innerHTML = 'Storage: <span class="success">' + t + ' (OK)</span>';
+                        })
+                        .catch(e => {
+                            document.getElementById('diag-storage').innerHTML = 'Storage: <span class="error">FALLO (' + e.message + ')</span>';
+                        });
+
+                    fetch(retrieverUrl)
+                        .then(r => r.text())
+                        .then(t => {
+                            document.getElementById('diag-retriever').innerHTML = 'Retriever: <span class="success">' + t + ' (OK)</span>';
+                        })
+                        .catch(e => {
+                            document.getElementById('diag-retriever').innerHTML = 'Retriever: <span class="error">FALLO (' + e.message + ')</span>';
+                        });
+                }
+                
+                window.onload = runTests;
+            </script>
+        </body>
+        </html>
+    """)
+
 if __name__ == '__main__':
     # Running on 0.0.0.0 to ensure accessibility if needed, debug=True for dev
     app.run(debug=True, port=5001)
