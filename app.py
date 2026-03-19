@@ -82,6 +82,19 @@ def save_signature():
         
         print(f"DEBUG: Processing signature for {filename}")
 
+        # Guardar el PDF firmado en una carpeta pública para que el enlace sea clicable
+        static_signed_dir = os.path.join(app.root_path, 'static', 'signed')
+        os.makedirs(static_signed_dir, exist_ok=True)
+        local_filepath = os.path.join(static_signed_dir, filename)
+        with open(local_filepath, 'wb') as f:
+            f.write(base64.b64decode(signature_b64))
+        
+        # Construir URL absoluta pública
+        public_url = request.url_root.rstrip('/') + '/static/signed/' + filename
+        # Fórmula de Excel (usamos punto y coma para compatibilidad con Excel en español si es necesario, 
+        # pero HYPERLINK con coma es el estándar de Power Automate)
+        excel_formula = f'=HYPERLINK("{public_url}", "{filename}")'
+
         # --- POWER AUTOMATE INTEGRATION ---
         webhook_status = "skipped"
         if target_webhook:
@@ -94,7 +107,9 @@ def save_signature():
                     'filename': filename,
                     'file_base64': signature_b64,
                     'fecha_solicitud': data.get('fecha', ''), # Alias for Power Automate
-                    'doc_type': doc_type
+                    'doc_type': doc_type,
+                    'url_fichero': public_url,
+                    'vincvlo_excel': excel_formula
                 })
                 print(f"DEBUG: Webhook Payload Keys: {list(payload.keys())}")
                 response = requests.post(target_webhook, json=payload)
