@@ -22,3 +22,8 @@ registros_permisos.csv
 .DS_Store
 # Documentation artifacts
 docs/
+
+# Persistence and Logs
+autofirma.log
+temp_storage/
+static/signed/

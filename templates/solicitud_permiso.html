@@ -139,6 +139,12 @@
         </form>
     </div>
 
+    <!-- Loader Overlay -->
+    <div id="loader" class="loader-overlay">
+        <div class="loader-spinner"></div>
+        <div id="loader-text" class="loader-text">Generando PDF...</div>
+    </div>
+
     <script>
         function showMessage(msg, type) {
             const el = document.getElementById('status');
@@ -160,6 +166,7 @@
             showMessage(displayMsg, "error");
             document.getElementById('signBtn').disabled = false;
             document.getElementById('signBtn').textContent = "Generar y Firmar Documento";
+            hideLoader();
 
             // Si tenemos el PDF, mostramos botón de reintento manual
             if (window.lastPDF) {
@@ -238,6 +245,7 @@
                 })
             })
                 .then(res => {
+                    hideLoader();
                     if (!res.ok) throw new Error("Server returned " + res.status);
                     return res.json();
                 })
@@ -297,6 +305,7 @@
 
             btn.disabled = true;
             btn.textContent = "Procesando...";
+            showLoader("Generando PDF oficial...");
             showMessage("Generando PDF... por favor espere", "info");
 
             const formData = new FormData(e.target);
@@ -324,6 +333,7 @@
                     // Show draft download link immediately as fallback
                     const draftLink = `<br><a href="data:application/pdf;base64,${result.pdf_base64}" download="Borrador_No_Firmado.pdf" style="color: blue; text-decoration: underline;">Descargar borrador (si AutoFirma no abre)</a>`;
                     showMessage("PDF Generado con éxito. Abriendo AutoFirma..." + draftLink, "info");
+                    showLoader("Abriendo AutoFirma...<br><small>Por favor, firme en la ventana emergente</small>");
 
                     if (typeof AutoScript !== 'undefined') {
                         console.log("Invocando AutoScript.sign...");
@@ -377,8 +387,18 @@
                 showMessage("Error de comunicación: " + error.message, "error");
                 btn.disabled = false;
                 btn.textContent = "Generar y Firmar Documento";
+                hideLoader();
             }
         });
+
+        function showLoader(text) {
+            document.getElementById('loader-text').innerHTML = text || "Procesando...";
+            document.getElementById('loader').style.display = 'flex';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
+        }
     </script>
 </body>
 

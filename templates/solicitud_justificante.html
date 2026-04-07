@@ -204,6 +204,12 @@
         </form>
     </div>
 
+    <!-- Loader Overlay -->
+    <div id="loader" class="loader-overlay">
+        <div class="loader-spinner"></div>
+        <div id="loader-text" class="loader-text">Generando PDF...</div>
+    </div>
+
     <script>
         let currentMode = 'specific';
 
@@ -293,6 +299,7 @@
             showMessage(displayMsg, "error");
             document.getElementById('signBtn').disabled = false;
             document.getElementById('signBtn').textContent = "Generar y Firmar con AutoFirma";
+            hideLoader();
 
             if (window.lastPDF) {
                 const statusEl = document.getElementById('status');
@@ -367,7 +374,10 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
-            }).then(r => r.json()).then(data => {
+            }).then(r => {
+                hideLoader();
+                return r.json();
+            }).then(data => {
                 if (data.status === 'success') {
                     const statusEl = document.getElementById('status');
                     statusEl.innerHTML = '';
@@ -430,6 +440,7 @@
                     // Fallback link
                     const draftLink = `<br><a href="data:application/pdf;base64,${result.pdf_base64}" download="Borrador_No_Firmado.pdf" style="color: blue; text-decoration: underline;">Descargar borrador (si AutoFirma no abre)</a>`;
                     showMessage("PDF Generado con éxito. Abriendo AutoFirma..." + draftLink, "info");
+                    showLoader("Abriendo AutoFirma...<br><small>Por favor, firme en la ventana emergente</small>");
 
                     if (typeof AutoScript !== 'undefined') {
                         window.lastPDF = result.pdf_base64;
@@ -459,7 +470,17 @@
             } catch (err) {
                 showMessage("Error de red: " + err, "error");
                 btn.disabled = false;
+                hideLoader();
             }
+        }
+
+        function showLoader(text) {
+            document.getElementById('loader-text').innerHTML = text || "Procesando...";
+            document.getElementById('loader').style.display = 'flex';
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').style.display = 'none';
         }
     </script>
 </body>

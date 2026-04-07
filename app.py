@@ -7,8 +7,24 @@ from pypdf import PdfReader, PdfWriter, PageObject
 from PIL import Image
 import requests
 
+import logging
+from logging.handlers import RotatingFileHandler
+
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+
+# --- LOGGING CONFIGURATION ---
+log_file = 'autofirma.log'
+log_handler = RotatingFileHandler(log_file, maxBytes=1000000, backupCount=5)
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_handler.setFormatter(log_formatter)
+
+logger = logging.getLogger('autofirma')
+logger.setLevel(logging.INFO)
+logger.addHandler(log_handler)
+logger.addHandler(logging.StreamHandler()) # Also log to console
+
+logger.info("AutoFirma application started")
 
 # --- CONFIGURATION ---
 # Replace this with your actual Power Automate Webhook URLs
@@ -41,7 +57,7 @@ def optimize_image_for_pdf(image_content, max_dim=1200):
         img_pdf_io.seek(0)
         return img_pdf_io
     except Exception as e:
-        print(f"ERROR optimizing image: {e}")
+        logger.error(f"ERROR optimizing image: {e}")
         return io.BytesIO(image_content) # Fallback to original
 # ---------------------
 
@@ -72,15 +88,15 @@ def save_signature():
         target_webhook = WEBHOOK_URL_PERMISO
         if doc_type == 'justificante':
             target_webhook = WEBHOOK_URL_JUSTIFICANTE
-            print(f"DEBUG: Using JUSTIFICANTE webhook for type={doc_type}")
+            logger.info(f"DEBUG: Using JUSTIFICANTE webhook for type={doc_type}")
         else:
-            print(f"DEBUG: Using PERMISO webhook (default) for type={doc_type}")
+            logger.info(f"DEBUG: Using PERMISO webhook (default) for type={doc_type}")
 
         # Sanitize filename
         safe_nombre = "".join([c for c in nombre_sanitizado if c.isalnum() or c in ('_', '-')]).rstrip()
         filename = f"Solicitud_{doc_type.capitalize()}_{safe_nombre}_{timestamp}_Firmado.pdf"
         
-        print(f"DEBUG: Processing signature for {filename}")
+        logger.info(f"Processing signature for {filename}")
 
         # Guardar el PDF firmado en una carpeta pública para que el enlace sea clicable
         static_signed_dir = os.path.join(app.root_path, 'static', 'signed')
@@ -99,7 +115,7 @@ def save_signature():
         webhook_status = "skipped"
         if target_webhook:
             try:
-                print(f"DEBUG: Sending to Webhook: {target_webhook}")
+                logger.info(f"Sending to Webhook: {target_webhook}")
                 # Send all metadata and base64 file as a JSON payload
                 payload = data.copy()
                 payload.update({
@@ -111,18 +127,18 @@ def save_signature():
                     'url_fichero': public_url,
                     'vincvlo_excel': excel_formula
                 })
-                print(f"DEBUG: Webhook Payload Keys: {list(payload.keys())}")
+                logger.info(f"Webhook Payload Keys: {list(payload.keys())}")
                 response = requests.post(target_webhook, json=payload)
-                print(f"DEBUG: Webhook Response: {response.status_code} - {response.text}")
+                logger.info(f"Webhook Response: {response.status_code} - {response.text}")
                 if response.ok:
                     webhook_status = "success"
                 else:
                     webhook_status = f"failed_http_{response.status_code}"
             except Exception as e_webhook:
-                print(f"ERROR: Webhook execution failed: {str(e_webhook)}")
+                logger.error(f"Webhook execution failed: {str(e_webhook)}")
                 webhook_status = f"error_{str(e_webhook)}"
         else:
-            print("DEBUG: No webhook URL configured for this type. Skipping.")
+            logger.warning("No webhook URL configured for this type. Skipping.")
             webhook_status = "no_url_configured"
         # ----------------------------------
 
@@ -132,7 +148,7 @@ def save_signature():
             "webhook_status": webhook_status
         })
     except Exception as e:
-        print(f"ERROR in /save: {str(e)}")
+        logger.error(f"ERROR in /save: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Removed redundant /permiso route
@@ -195,7 +211,7 @@ def get_pdf_anchors(template_path):
             page.extract_text(visitor_text=visitor)
         return anchors
     except Exception as e:
-        print(f"ERROR extracting anchors: {str(e)}")
+        logger.error(f"ERROR extracting anchors: {str(e)}")
         return {}
 
 @app.route('/generate_justificante', methods=['POST'])
@@ -410,7 +426,7 @@ def generate_justificante():
         sign_id = str(uuid.uuid4())
         save_to_storage(sign_id, pdf_b64)
         
-        print(f"DEBUG: Justificante generated. ID: {sign_id}")
+        logger.info(f"Justificante generated. ID: {sign_id}")
         return jsonify({
             "status": "success", 
             "pdf_base64": pdf_b64, 
@@ -639,7 +655,7 @@ def generate_permiso():
         
         # Encode to Base64
         pdf_base64 = base64.b64encode(output_stream.read()).decode('utf-8')
-        print(f"DEBUG: PDF generated successfully for {data.get('nombre')}")
+        logger.info(f"PDF generated successfully for {data.get('nombre')}")
         
         # Extra parameters for visible signature (PAdES)
         # Moving it slightly up (Y from 150->160 and 205->215) to avoid overlapping "Fdo.:"
@@ -670,7 +686,7 @@ def generate_permiso():
         })
 
     except Exception as e:
-        print(f"ERROR in /generate_permiso: {str(e)}")
+        logger.error(f"ERROR in /generate_permiso: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -723,7 +739,7 @@ def storage_servlet():
         request.args.get('id') or request.form.get('id') or \
         request.args.get('id_operacion') or request.form.get('id_operacion')
     
-    print(f"DEBUG: /storage method={request.method} op={op} v={v}")
+    logger.info(f"Storage request op={op} v={v} method={request.method}")
     
     # Base health check
     if not op and not v:
@@ -743,7 +759,7 @@ def storage_servlet():
                     import base64
                     data = base64.b64encode(data).decode('utf-8')
             save_to_storage(v, data)
-            print(f"DEBUG: /storage SUCCESS v={v} size={len(data)}")
+            logger.info(f"Storage SUCCESS v={v} size={len(data)}")
             return make_cors_response("OK")
             
     return make_cors_response("BadRequest", 400)
@@ -758,7 +774,7 @@ def retriever_servlet():
         request.args.get('id') or request.form.get('id') or \
         request.args.get('id_operacion') or request.form.get('id_operacion')
     
-    print(f"DEBUG: /retriever method={request.method} op={op} v={v}")
+    logger.info(f"Retriever request op={op} v={v} method={request.method}")
     
     if not op and not v:
         return make_cors_response("Retriever Servlet Active (Use op=check to verify)")
@@ -769,9 +785,9 @@ def retriever_servlet():
     if op == 'get':
         data = get_from_storage(v)
         if data:
-            print(f"DEBUG: /retriever SUCCESS v={v}")
+            logger.info(f"Retriever SUCCESS v={v}")
             return make_cors_response(data)
-        print(f"DEBUG: /retriever NOT FOUND v={v}")
+        logger.warning(f"Retriever NOT FOUND v={v}")
         return make_cors_response("NotFound", 404)
         
     return make_cors_response("BadRequest", 400)
