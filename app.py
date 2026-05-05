@@ -367,15 +367,11 @@ def generate_justificante():
         overlay_reader = PdfReader(packet)
         
         # Merge with template
-        reader = PdfReader(template_path)
-        writer = PdfWriter()
+        writer = PdfWriter(clone_from=template_path)
         
-        # Add template pages (merging overlay on page 1)
-        for i in range(len(reader.pages)):
-            page = reader.pages[i]
-            if i == 0:
-                page.merge_page(overlay_reader.pages[0])
-            writer.add_page(page)
+        # Merge overlay onto the first page
+        if len(writer.pages) >= 1:
+            writer.pages[0].merge_page(overlay_reader.pages[0])
 
         # 4. APPEND ATTACHMENT
         adjunto_content = None
@@ -402,24 +398,24 @@ def generate_justificante():
                 elif adjunto_ext == 'pdf':
                     writer.append(PdfReader(io.BytesIO(adjunto_content)))
             except Exception as e_merge:
-                print(f"WARNING: Could not merge attachment to justificante: {str(e_merge)}")
+                logger.warning(f"WARNING: Could not merge attachment to justificante: {str(e_merge)}")
 
-        for page in writer.pages:
-            page.compress_content_streams() # Compress PDF content
+        # Finalize PDF
         out = io.BytesIO()
         writer.write(out)
         out.seek(0)
         pdf_b64 = base64.b64encode(out.read()).decode('utf-8')
         
         fecha_corta = time.strftime('%d/%m/%Y a las %H:%M')
+        # Improved signature params: Removing CertificationLevel 2 to avoid Adobe "Invalid" errors
+        # and aligning coordinates with permiso (160-215)
         extra = (
             f"signaturePage=1\n"
             f"layer2Text=Firmado digitalmente por {nombre_profe}\\nFecha: {fecha_corta}\n"
             f"signaturePositionOnPageLowerLeftX=320\n"
-            f"signaturePositionOnPageLowerLeftY=170\n"
+            f"signaturePositionOnPageLowerLeftY=160\n"
             f"signaturePositionOnPageUpperRightX=550\n"
-            f"signaturePositionOnPageUpperRightY=225\n"
-            f"signatureCertificationLevel=2\n"
+            f"signaturePositionOnPageUpperRightY=215\n"
         )
         # Pre-store for triangular signing (mobile support)
         import uuid
@@ -434,14 +430,7 @@ def generate_justificante():
             "extra_params": extra
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
-    except Exception as e:
+        logger.error(f"ERROR generating justificante: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -644,8 +633,6 @@ def generate_permiso():
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment: {str(e_merge)}")
 
-        for page in writer.pages:
-            page.compress_content_streams() # Compress PDF content
         # Write result to memory
         output_stream = io.BytesIO()
         writer.write(output_stream)
@@ -667,7 +654,6 @@ def generate_permiso():
             f"signaturePositionOnPageLowerLeftY=160\n"
             f"signaturePositionOnPageUpperRightX=550\n"
             f"signaturePositionOnPageUpperRightY=215\n"
-            f"signatureCertificationLevel=2\n"
         )
         
         final_filename = f"Solicitud_Permiso_{safe_name}_{timestamp_str}_Rellena.pdf"
