@@ -79,6 +79,36 @@ def optimize_image_for_pdf(image_content, max_dim=1200):
     except Exception as e:
         logger.error(f"ERROR optimizing image to PDF: {e}")
         return None
+def flatten_pdf(pdf_bytes):
+    """Removes digital signature fields from a PDF to avoid validation errors when merged."""
+    try:
+        from pypdf import PdfReader, PdfWriter
+        import io
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
+        
+        for page in reader.pages:
+            if '/Annots' in page:
+                # Filter out signature annotations
+                annots = page['/Annots']
+                if isinstance(annots, list):
+                    page['/Annots'] = [a for a in annots if a.get_object().get('/FT') != '/Sig']
+                else:
+                    # If it's a single indirect object
+                    obj = annots.get_object()
+                    if obj.get('/FT') == '/Sig':
+                        del page['/Annots']
+            
+            writer.add_page(page)
+        
+        out = io.BytesIO()
+        writer.write(out)
+        out.seek(0)
+        return out.read()
+    except Exception as e:
+        logger.error(f"Error flattening PDF: {e}")
+        return pdf_bytes # Fallback
+
 # ---------------------
 
 @app.route('/')
@@ -423,8 +453,10 @@ def generate_justificante():
                     else:
                         logger.error("Failed to convert image to PDF")
                 elif adjunto_ext == 'pdf':
-                    writer.append(PdfReader(io.BytesIO(adjunto_content)))
-                    logger.info("PDF attachment appended successfully")
+                    # Flatten PDF to remove existing signatures that cause validation errors
+                    clean_pdf = flatten_pdf(adjunto_content)
+                    writer.append(PdfReader(io.BytesIO(clean_pdf)))
+                    logger.info("PDF attachment (flattened) appended successfully")
                 else:
                     logger.warning(f"Unsupported attachment extension: {adjunto_ext}")
             except Exception as e_merge:
@@ -660,7 +692,9 @@ def generate_permiso():
                     else:
                         logger.error("Failed to convert image to PDF in permiso")
                 elif ext == 'pdf':
-                    writer.append(PdfReader(io.BytesIO(content)))
+                    # Flatten PDF to remove existing signatures that cause validation errors
+                    clean_pdf = flatten_pdf(content)
+                    writer.append(PdfReader(io.BytesIO(clean_pdf)))
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment: {str(e_merge)}")
 
