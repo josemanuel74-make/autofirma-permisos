@@ -80,34 +80,46 @@ def optimize_image_for_pdf(image_content, max_dim=1200):
         logger.error(f"ERROR optimizing image to PDF: {e}")
         return None
 def flatten_pdf(pdf_bytes):
-    """Removes digital signature fields from a PDF to avoid validation errors when merged."""
+    """Aggressively flattens a PDF by merging its content onto blank pages, stripping all annotations/signatures."""
     try:
-        from pypdf import PdfReader, PdfWriter
+        from pypdf import PdfReader, PdfWriter, PageObject
         import io
         reader = PdfReader(io.BytesIO(pdf_bytes))
         writer = PdfWriter()
         
+        # If the PDF is encrypted, we might not be able to process it easily
+        if reader.is_encrypted:
+            try:
+                reader.decrypt("") # Try with empty password
+            except:
+                logger.warning("Attachment is encrypted and cannot be flattened. Merging as is.")
+                return pdf_bytes
+
         for page in reader.pages:
-            if '/Annots' in page:
-                # Filter out signature annotations
-                annots = page['/Annots']
-                if isinstance(annots, list):
-                    page['/Annots'] = [a for a in annots if a.get_object().get('/FT') != '/Sig']
-                else:
-                    # If it's a single indirect object
-                    obj = annots.get_object()
-                    if obj.get('/FT') == '/Sig':
-                        del page['/Annots']
+            # Create a new blank page with the same dimensions
+            # This is the most robust way to strip all "extra" metadata (signatures, forms, annots)
+            # while keeping the visual content.
+            mb = page.mediabox
+            width = mb.right - mb.left
+            height = mb.top - mb.bottom
             
-            writer.add_page(page)
+            new_page = PageObject.create_blank_page(width=width, height=height)
+            # merge_page copies the content stream but usually NOT the annotations
+            new_page.merge_page(page)
+            writer.add_page(new_page)
+        
+        # Ensure no residual form data survives in the catalog
+        if "/AcroForm" in writer.root_object:
+            del writer.root_object["/AcroForm"]
         
         out = io.BytesIO()
         writer.write(out)
         out.seek(0)
         return out.read()
     except Exception as e:
-        logger.error(f"Error flattening PDF: {e}")
-        return pdf_bytes # Fallback
+        logger.error(f"Error aggressively flattening PDF: {e}")
+        # If aggressive flattening fails, try a simple copy as fallback
+        return pdf_bytes
 
 # ---------------------
 
