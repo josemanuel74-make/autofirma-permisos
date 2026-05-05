@@ -32,33 +32,53 @@ WEBHOOK_URL_PERMISO = "https://default70879308da7343a1acdf57810f4ae6.2b.environm
 WEBHOOK_URL_JUSTIFICANTE = "https://default70879308da7343a1acdf57810f4ae6.2b.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c94fa3e6d5e44c95b834cb47140f9362/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4l1709SOgNvMKMcPO4jj0x7eHCtvEVKVRiE7LLAsy7I"
 
 def optimize_image_for_pdf(image_content, max_dim=1200):
-# ... (existing code for optimize_image_for_pdf)
-    """Resizes and compresses an image to reduce PDF size."""
+    """Resizes and compresses an image and returns a PDF file (as BytesIO) containing it."""
     try:
+        from PIL import Image
+        import io
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+
         img = Image.open(io.BytesIO(image_content))
-        # Ensure RGB (removes alpha if any)
         if img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # Resize if too large
         w, h = img.size
         if max(w, h) > max_dim:
-            if w > h:
-                new_w = max_dim
-                new_h = int(h * (max_dim / w))
-            else:
-                new_h = max_dim
-                new_w = int(w * (max_dim / h))
-            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            scale = max_dim / max(w, h)
+            img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
         
-        img_pdf_io = io.BytesIO()
-        # Save as JPEG inside the PDF container to save space
-        img.save(img_pdf_io, format='JPEG', quality=80, optimize=True)
-        img_pdf_io.seek(0)
-        return img_pdf_io
+        # Convert to PDF using reportlab
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG', quality=80)
+        img_byte_arr.seek(0)
+        
+        pdf_io = io.BytesIO()
+        c = canvas.Canvas(pdf_io, pagesize=A4)
+        
+        # Calculate dimensions to fit in A4
+        a4_w, a4_h = A4
+        img_w, img_h = img.size
+        
+        # Scale to fit A4 while preserving aspect ratio
+        scale = min(a4_w / img_w, a4_h / img_h) * 0.9 # 90% of page
+        draw_w = img_w * scale
+        draw_h = img_h * scale
+        
+        # Center on page
+        x = (a4_w - draw_w) / 2
+        y = (a4_h - draw_h) / 2
+        
+        from reportlab.lib.utils import ImageReader
+        c.drawImage(ImageReader(img_byte_arr), x, y, width=draw_w, height=draw_h)
+        c.showPage()
+        c.save()
+        
+        pdf_io.seek(0)
+        return pdf_io
     except Exception as e:
-        logger.error(f"ERROR optimizing image: {e}")
-        return io.BytesIO(image_content) # Fallback to original
+        logger.error(f"ERROR optimizing image to PDF: {e}")
+        return None
 # ---------------------
 
 @app.route('/')
@@ -382,23 +402,33 @@ def generate_justificante():
             if f.filename != '':
                 adjunto_content = f.read()
                 adjunto_ext = f.filename.split('.')[-1].lower()
+                logger.info(f"Attachment received via files: {f.filename} ({len(adjunto_content)} bytes)")
         
         if not adjunto_content and data.get('adjunto_base64'):
             try:
                 adjunto_content = base64.b64decode(data.get('adjunto_base64'))
                 adjunto_name = data.get('adjunto_nombre', 'archivo')
                 adjunto_ext = adjunto_name.split('.')[-1].lower()
-            except: pass
+                logger.info(f"Attachment received via base64: {adjunto_name} ({len(adjunto_content)} bytes)")
+            except Exception as e_b64:
+                logger.error(f"Error decoding base64 attachment: {e_b64}")
 
         if adjunto_content:
             try:
                 if adjunto_ext in ['jpg', 'jpeg', 'png']:
                     img_pdf_io = optimize_image_for_pdf(adjunto_content)
-                    writer.append(PdfReader(img_pdf_io))
+                    if img_pdf_io:
+                        writer.append(PdfReader(img_pdf_io))
+                        logger.info("Image attachment appended successfully")
+                    else:
+                        logger.error("Failed to convert image to PDF")
                 elif adjunto_ext == 'pdf':
                     writer.append(PdfReader(io.BytesIO(adjunto_content)))
+                    logger.info("PDF attachment appended successfully")
+                else:
+                    logger.warning(f"Unsupported attachment extension: {adjunto_ext}")
             except Exception as e_merge:
-                logger.warning(f"WARNING: Could not merge attachment to justificante: {str(e_merge)}")
+                logger.error(f"ERROR merging attachment to justificante: {str(e_merge)}")
 
         # Finalize PDF
         out = io.BytesIO()
@@ -625,11 +655,12 @@ def generate_permiso():
                 content = attachment_data['content']
                 if ext in ['jpg', 'jpeg', 'png']:
                     img_pdf_io = optimize_image_for_pdf(content)
-                    attachment_reader = PdfReader(img_pdf_io)
-                    writer.append(attachment_reader)
+                    if img_pdf_io:
+                        writer.append(PdfReader(img_pdf_io))
+                    else:
+                        logger.error("Failed to convert image to PDF in permiso")
                 elif ext == 'pdf':
-                    attachment_reader = PdfReader(io.BytesIO(content))
-                    writer.append(attachment_reader)
+                    writer.append(PdfReader(io.BytesIO(content)))
             except Exception as e_merge:
                 print(f"WARNING: Could not merge attachment: {str(e_merge)}")
 
